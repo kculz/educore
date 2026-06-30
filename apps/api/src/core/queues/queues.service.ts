@@ -3,6 +3,7 @@ import { Queue } from 'bullmq';
 
 import { PlatformConfigService } from '../../config/platform-config.service';
 import { PlatformStateService } from '../platform-state/platform-state.service';
+import { BackgroundJobsService } from '../../shared/jobs/background-jobs.service';
 
 @Injectable()
 export class QueuesService {
@@ -20,6 +21,7 @@ export class QueuesService {
   constructor(
     private readonly config: PlatformConfigService,
     private readonly platformState: PlatformStateService,
+    private readonly backgroundJobs: BackgroundJobsService,
   ) {}
 
   listQueues() {
@@ -35,6 +37,12 @@ export class QueuesService {
 
   async add(queueName: string, name: string, payload: Record<string, unknown>, tenantId: string | null = null) {
     const queue = this.getQueue(queueName);
+    const descriptor = this.backgroundJobs.createJobDescriptor({
+      queue: queueName,
+      name,
+      tenantId,
+      payload,
+    });
     const job = await queue.add(name, payload, {
       removeOnComplete: true,
       removeOnFail: false,
@@ -50,6 +58,8 @@ export class QueuesService {
       id: job.id,
       queue: queueName,
       name,
+      createdAt: descriptor.createdAt,
+      tenantId: descriptor.tenantId,
     };
   }
 

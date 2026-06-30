@@ -18,6 +18,14 @@ The current implementation covers the Phase 1 platform foundation:
 - Audit logs, notifications, settings, dashboard, and reporting
 - Logging, queues, email templates, storage, configuration, health checks, and Swagger
 
+The shared infrastructure setup for Phase 2 is also in place:
+
+- Pagination, filtering, searching, and sorting helpers
+- CSV and PDF export services
+- File upload, caching, validation, and response formatting helpers
+- Shared storage, email template, notification, background job, and exception utilities
+- Common platform utilities for future products
+
 ## Layout
 
 ```text
@@ -43,8 +51,8 @@ The API scaffold already includes the architecture-aligned source folders for:
 1. Copy `.env.example` to `.env` at the repository root.
 2. Install dependencies.
 3. Run the API and web apps in development mode.
-4. Generate the shared platform modules.
-5. Fill in the initial product modules.
+4. Start the Admission product on top of the shared platform setup.
+5. Extend the web app once Admission APIs and screens are ready.
 
 ## Useful Commands
 

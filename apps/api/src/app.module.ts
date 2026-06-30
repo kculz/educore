@@ -28,11 +28,13 @@ import { StorageAdminModule } from './core/storage/storage.admin.module';
 import { StorageModule } from './core/storage/storage.module';
 import { TenantsModule } from './core/tenants/tenants.module';
 import { UsersModule } from './core/users/users.module';
+import { SharedModule } from './shared/shared.module';
 
 @Module({
   imports: [
     PlatformConfigModule,
     PlatformStateModule,
+    SharedModule,
     LoggingModule,
     QueuesModule,
     EmailModule,
