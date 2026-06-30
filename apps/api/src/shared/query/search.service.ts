@@ -2,15 +2,16 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class SearchService {
-  search<T extends Record<string, unknown>>(items: T[], term: string, fields?: string[]) {
+  search<T extends object>(items: T[], term: string, fields?: string[]) {
     const normalizedTerm = term.trim().toLowerCase();
     if (!normalizedTerm) {
       return [...items];
     }
 
     return items.filter((item) => {
-      const haystack = fields && fields.length > 0 ? fields : Object.keys(item);
-      return haystack.some((field) => this.valueContains(item[field], normalizedTerm));
+      const record = item as Record<string, unknown>;
+      const haystack = fields && fields.length > 0 ? fields : Object.keys(record);
+      return haystack.some((field) => this.valueContains(record[field], normalizedTerm));
     });
   }
 
@@ -30,4 +31,3 @@ export class SearchService {
     return String(value).toLowerCase().includes(needle);
   }
 }
-

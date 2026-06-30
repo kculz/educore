@@ -4,17 +4,18 @@ import type { QueryFilterMap } from './query.types';
 
 @Injectable()
 export class FilteringService {
-  filter<T extends Record<string, unknown>>(items: T[], filters: QueryFilterMap = {}) {
+  filter<T extends object>(items: T[], filters: QueryFilterMap = {}) {
     return items.filter((item) => this.matches(item, filters));
   }
 
-  matches<T extends Record<string, unknown>>(item: T, filters: QueryFilterMap = {}) {
+  matches<T extends object>(item: T, filters: QueryFilterMap = {}) {
+    const record = item as Record<string, unknown>;
     return Object.entries(filters).every(([key, expected]) => {
       if (expected === undefined || expected === null || expected === '') {
         return true;
       }
 
-      return this.matchesValue(item[key], expected);
+      return this.matchesValue(record[key], expected);
     });
   }
 
@@ -50,4 +51,3 @@ export class FilteringService {
     return String(value).toLowerCase();
   }
 }
-

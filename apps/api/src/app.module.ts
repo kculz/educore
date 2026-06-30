@@ -28,6 +28,7 @@ import { StorageAdminModule } from './core/storage/storage.admin.module';
 import { StorageModule } from './core/storage/storage.module';
 import { TenantsModule } from './core/tenants/tenants.module';
 import { UsersModule } from './core/users/users.module';
+import { AdmissionModule } from './products/admission/admission.module';
 import { SharedModule } from './shared/shared.module';
 
 @Module({
@@ -46,6 +47,7 @@ import { SharedModule } from './shared/shared.module';
     RolesModule,
     PermissionsModule,
     ProductsModule,
+    AdmissionModule,
     LicensingModule,
     FeatureFlagsModule,
     AuditModule,

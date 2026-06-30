@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 
 import { hashPassword } from '../auth/password.util';
 import type {
-  JwtRefreshPayload,
   JwtUserPayload,
   PlatformAuditLog,
   PlatformFeatureFlag,
@@ -610,6 +609,8 @@ export class PlatformStateService {
       { key: 'settings.write', description: 'Write settings', module: 'settings' },
       { key: 'dashboard.read', description: 'Read dashboard metrics', module: 'dashboard' },
       { key: 'reports.read', description: 'Read reports', module: 'reporting' },
+      { key: 'admission.read', description: 'Read admission data', module: 'admission' },
+      { key: 'admission.write', description: 'Write admission data', module: 'admission' },
       { key: 'queues.read', description: 'Read queues', module: 'queues' },
       { key: 'queues.write', description: 'Write queues', module: 'queues' },
       { key: 'emails.write', description: 'Send emails', module: 'email' },
@@ -660,6 +661,8 @@ export class PlatformStateService {
         'settings.write',
         'dashboard.read',
         'reports.read',
+        'admission.read',
+        'admission.write',
         'queues.read',
         'emails.write',
         'health.read',
