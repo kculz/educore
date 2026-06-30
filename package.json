@@ -1,0 +1,21 @@
+{
+  "name": "educore-platform",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace @educore/api",
+    "dev:web": "npm run dev --workspace @educore/web",
+    "build:api": "npm run build --workspace @educore/api",
+    "build:web": "npm run build --workspace @educore/web",
+    "lint:api": "npm run lint --workspace @educore/api",
+    "lint:web": "npm run lint --workspace @educore/web",
+    "test:api": "npm run test --workspace @educore/api"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
+

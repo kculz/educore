@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage
+.next
+.turbo
+.cache
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+

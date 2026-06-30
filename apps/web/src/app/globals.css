@@ -1,0 +1,137 @@
+:root {
+  --bg: #07111f;
+  --bg-soft: #0f1c33;
+  --panel: rgba(10, 18, 34, 0.82);
+  --panel-border: rgba(129, 163, 255, 0.14);
+  --text: #ecf2ff;
+  --muted: #a8b7d7;
+  --accent: #7ed4ff;
+  --accent-strong: #9bffcb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(126, 212, 255, 0.18), transparent 35%),
+    radial-gradient(circle at top right, rgba(155, 255, 203, 0.14), transparent 30%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+  font-family:
+    Optima, 'Avenir Next', 'Trebuchet MS', 'Segoe UI', sans-serif;
+  text-rendering: geometricPrecision;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.shell {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 64px;
+}
+
+.hero {
+  display: grid;
+  gap: 24px;
+  padding: 32px;
+  border: 1px solid var(--panel-border);
+  border-radius: 28px;
+  background: var(--panel);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 8px 14px;
+  border: 1px solid rgba(126, 212, 255, 0.24);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(126, 212, 255, 0.08);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2.4rem, 6vw, 4.8rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.lede {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.card {
+  grid-column: span 4;
+  padding: 20px;
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  background: rgba(8, 15, 29, 0.72);
+}
+
+.card h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.footer {
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 900px) {
+  .card {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    width: min(100% - 20px, 1120px);
+    padding-top: 20px;
+  }
+
+  .hero {
+    padding: 22px;
+    border-radius: 22px;
+  }
+
+  .card {
+    grid-column: span 12;
+  }
+}
