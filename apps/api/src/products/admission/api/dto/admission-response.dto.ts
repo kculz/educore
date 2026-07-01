@@ -55,6 +55,9 @@ export class AdmissionApplicantDto {
   guardian!: AdmissionGuardianDto | null;
 
   @ApiPropertyOptional({ nullable: true })
+  guardianName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
   deletedAt!: string | null;
 
   @ApiProperty()
@@ -245,4 +248,3 @@ export class AdmissionDashboardDto {
   @ApiProperty()
   acceptanceRate!: number;
 }
-

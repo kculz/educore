@@ -37,6 +37,9 @@ export default function HomePage() {
         </div>
 
         <p className="footer">Initial scaffold ready for dependency install and module generation.</p>
+        <p className="footer">
+          Open the live admission workspace at <a href="/admission">/admission</a>.
+        </p>
       </section>
     </main>
   );

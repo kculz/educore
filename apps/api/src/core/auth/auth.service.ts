@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 import { PlatformConfigService } from '../../config/platform-config.service';
@@ -38,9 +38,9 @@ function parseDurationToSeconds(value: string) {
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly jwtService: JwtService,
-    private readonly config: PlatformConfigService,
-    private readonly platformState: PlatformStateService,
+    @Inject(JwtService) private readonly jwtService: JwtService,
+    @Inject(PlatformConfigService) private readonly config: PlatformConfigService,
+    @Inject(PlatformStateService) private readonly platformState: PlatformStateService,
   ) {}
 
   async login(input: { tenantId: string; email: string; password: string }) {
@@ -113,6 +113,19 @@ export class AuthService {
 
   me(userId: string) {
     return this.serializeUser(userId);
+  }
+
+  listTenants() {
+    return this.platformState
+      .listTenants()
+      .filter((tenant) => tenant.status === 'active')
+      .map((tenant) => ({
+        id: tenant.id,
+        slug: tenant.slug,
+        name: tenant.name,
+        enabledProducts: [...tenant.enabledProducts],
+        status: tenant.status,
+      }));
   }
 
   private async issueTokenPair(user: PlatformUser) {

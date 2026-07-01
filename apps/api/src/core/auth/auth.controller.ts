@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Inject, Post, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
-import { AccessScope, PublicRoute } from '../platform-access/platform-access.decorator';
-import { AuthResponseDto, AuthUserDto } from './dto/auth-response.dto';
+import { AccessScope, AnonymousRoute, PublicRoute } from '../platform-access/platform-access.decorator';
+import { AuthResponseDto, AuthTenantDto, AuthUserDto } from './dto/auth-response.dto';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -21,11 +21,19 @@ type RequestWithContext = Request & {
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(@Inject(AuthService) private readonly authService: AuthService) {}
+
+  @Get('tenants')
+  @AnonymousRoute()
+  @ApiOkResponse({ type: AuthTenantDto, isArray: true })
+  tenants() {
+    return this.authService.listTenants();
+  }
 
   @Post('login')
   @PublicRoute()
   @AccessScope({ productCode: 'platform' })
+  @ApiBody({ type: LoginDto })
   @ApiOkResponse({ type: AuthResponseDto })
   login(@Req() request: RequestWithContext, @Body() dto: LoginDto) {
     return this.authService.login({
@@ -38,6 +46,7 @@ export class AuthController {
   @Post('refresh')
   @PublicRoute()
   @AccessScope({ productCode: 'platform' })
+  @ApiBody({ type: RefreshTokenDto })
   @ApiOkResponse({ type: AuthResponseDto })
   refresh(@Req() request: RequestWithContext, @Body() dto: RefreshTokenDto) {
     return this.authService.refresh({
