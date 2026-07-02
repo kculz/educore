@@ -10,6 +10,8 @@ import type {
   AdmissionGuardian,
   AdmissionProgramme,
 } from '../domain/admission.types';
+import type { CreateCycleDto } from '../api/dto/create-cycle.dto';
+import type { CreateProgrammeDto } from '../api/dto/create-programme.dto';
 import type { CreateApplicantDto } from '../api/dto/create-applicant.dto';
 import type { CreateApplicationDto } from '../api/dto/create-application.dto';
 import type { CreateGuardianDto } from '../api/dto/create-guardian.dto';
@@ -96,6 +98,41 @@ export class AdmissionStoreService {
   listProgrammes(tenantId: string) {
     this.ensureTenantSeed(tenantId);
     return this.collectByTenant(this.programmes, tenantId);
+  }
+
+  createCycle(tenantId: string, input: CreateCycleDto) {
+    this.ensureTenantSeed(tenantId);
+    const cycle: AdmissionCycle = {
+      id: randomUUID(),
+      tenantId,
+      academicYear: input.academicYear,
+      name: input.name,
+      startDate: input.startDate,
+      endDate: input.endDate ?? null,
+      status: input.status ?? 'draft',
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    this.cycles.set(cycle.id, cycle);
+    return clone(cycle);
+  }
+
+  createProgramme(tenantId: string, input: CreateProgrammeDto) {
+    this.ensureTenantSeed(tenantId);
+    this.assertProgrammeCodeAvailable(tenantId, input.code);
+    const programme: AdmissionProgramme = {
+      id: randomUUID(),
+      tenantId,
+      code: input.code,
+      name: input.name,
+      level: input.level,
+      capacity: input.capacity,
+      active: input.active ?? true,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    this.programmes.set(programme.id, programme);
+    return clone(programme);
   }
 
   updateCycle(tenantId: string, cycleId: string, input: UpdateCycleDto) {

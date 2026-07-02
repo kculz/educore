@@ -8,6 +8,8 @@ import { PlatformStateService } from '../../../core/platform-state/platform-stat
 import type { PaginatedResult } from '../../../shared/query/query.types';
 import { AdmissionStoreService } from '../infrastructure/admission-store.service';
 import type { AdmissionDashboardSummary } from '../domain/admission.types';
+import type { CreateCycleDto } from '../api/dto/create-cycle.dto';
+import type { CreateProgrammeDto } from '../api/dto/create-programme.dto';
 import type { CreateApplicantDto } from '../api/dto/create-applicant.dto';
 import type { CreateApplicationDto } from '../api/dto/create-application.dto';
 import type { EnrollStudentDto } from '../api/dto/enroll-student.dto';
@@ -53,6 +55,15 @@ export class AdmissionService {
     );
   }
 
+  createCycle(tenantId: string, actorUserId: string | null, dto: CreateCycleDto) {
+    const cycle = this.store.createCycle(tenantId, dto);
+    this.recordAudit(tenantId, actorUserId, 'admission.cycle.created', 'admission-cycle', {
+      cycleId: cycle.id,
+      status: cycle.status,
+    });
+    return this.store.getCycle(tenantId, cycle.id);
+  }
+
   updateCycle(tenantId: string, actorUserId: string | null, cycleId: string, dto: UpdateCycleDto) {
     const cycle = this.store.updateCycle(tenantId, cycleId, dto);
     this.recordAudit(tenantId, actorUserId, 'admission.cycle.updated', 'admission-cycle', {
@@ -79,6 +90,16 @@ export class AdmissionService {
       ['fullName', 'email', 'phoneNumber', 'guardianName'],
       'updatedAt',
     );
+  }
+
+  createProgramme(tenantId: string, actorUserId: string | null, dto: CreateProgrammeDto) {
+    const programme = this.store.createProgramme(tenantId, dto);
+    this.recordAudit(tenantId, actorUserId, 'admission.programme.created', 'admission-programme', {
+      programmeId: programme.id,
+      code: programme.code,
+      active: programme.active,
+    });
+    return this.store.getProgramme(tenantId, programme.id);
   }
 
   getApplicant(tenantId: string, applicantId: string) {

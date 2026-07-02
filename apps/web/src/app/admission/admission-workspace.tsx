@@ -15,6 +15,8 @@ import {
   getAdmissionDashboard,
   getApiHealth,
   getPublicTenants,
+  createAdmissionCycle,
+  createAdmissionProgramme,
   listAdmissionApplicants,
   listAdmissionApplications,
   listAdmissionCycles,
@@ -42,10 +44,10 @@ import {
   type ApiPaginatedResponse,
   type ApiTenant,
   type CreateApplicantInput,
+  type CreateCycleInput,
+  type CreateProgrammeInput,
   type UpdateApplicationInput,
   type UpdateApplicantInput,
-  type UpdateCycleInput,
-  type UpdateProgrammeInput,
 } from '@web/lib/educore-api';
 import styles from './admission-workspace.module.css';
 
@@ -344,7 +346,7 @@ function cycleFormFromCycle(cycle: AdmissionCycle): CycleFormState {
   };
 }
 
-function buildCycleUpdateInput(form: CycleFormState): UpdateCycleInput {
+function buildCycleInput(form: CycleFormState): CreateCycleInput {
   const academicYear = queryValue(form.academicYear);
   const name = queryValue(form.name);
   const startDate = queryValue(form.startDate);
@@ -372,7 +374,7 @@ function programmeFormFromProgramme(programme: AdmissionProgramme): ProgrammeFor
   };
 }
 
-function buildProgrammeUpdateInput(form: ProgrammeFormState): UpdateProgrammeInput {
+function buildProgrammeInput(form: ProgrammeFormState): CreateProgrammeInput {
   const code = queryValue(form.code);
   const name = queryValue(form.name);
   const level = queryValue(form.level);
@@ -769,23 +771,25 @@ export function AdmissionWorkspace() {
     setFlash(null);
 
     try {
-      if (!isEditingCycle || !editingCycleId) {
-        throw new Error('Select a cycle to edit first.');
-      }
-
-      const saved = await updateAdmissionCycle(session, editingCycleId, buildCycleUpdateInput(cycleForm));
+      const payload = buildCycleInput(cycleForm);
+      const editingCycle = isEditingCycle;
+      const saved = editingCycle && editingCycleId
+        ? await updateAdmissionCycle(session, editingCycleId, payload)
+        : await createAdmissionCycle(session, payload);
 
       handleCycleFormReset();
       setFlash({
         kind: 'success',
-        message: `${saved.name} was updated.`,
+        message: editingCycle ? `${saved.name} was updated.` : `${saved.name} was created.`,
       });
       await refreshWorkspace(session, query);
     } catch (error) {
       const message =
         error instanceof EduCoreApiError || error instanceof Error
           ? error.message
-          : 'Unable to update the cycle.';
+          : isEditingCycle
+            ? 'Unable to update the cycle.'
+            : 'Unable to create the cycle.';
       setFlash({ kind: 'error', message });
     } finally {
       setBusy(false);
@@ -854,27 +858,25 @@ export function AdmissionWorkspace() {
     setFlash(null);
 
     try {
-      if (!isEditingProgramme || !editingProgrammeId) {
-        throw new Error('Select a programme to edit first.');
-      }
-
-      const saved = await updateAdmissionProgramme(
-        session,
-        editingProgrammeId,
-        buildProgrammeUpdateInput(programmeForm),
-      );
+      const payload = buildProgrammeInput(programmeForm);
+      const editingProgramme = isEditingProgramme;
+      const saved = editingProgramme && editingProgrammeId
+        ? await updateAdmissionProgramme(session, editingProgrammeId, payload)
+        : await createAdmissionProgramme(session, payload);
 
       handleProgrammeFormReset();
       setFlash({
         kind: 'success',
-        message: `${saved.code} was updated.`,
+        message: editingProgramme ? `${saved.code} was updated.` : `${saved.code} was created.`,
       });
       await refreshWorkspace(session, query);
     } catch (error) {
       const message =
         error instanceof EduCoreApiError || error instanceof Error
           ? error.message
-          : 'Unable to update the programme.';
+          : isEditingProgramme
+            ? 'Unable to update the programme.'
+            : 'Unable to create the programme.';
       setFlash({ kind: 'error', message });
     } finally {
       setBusy(false);
@@ -2029,7 +2031,7 @@ export function AdmissionWorkspace() {
                   <div className={styles.panelHeader}>
                     <div>
                       <p className={styles.panelKicker}>Cycles</p>
-                      <h2 className={styles.panelTitle}>Admission cycles</h2>
+                      <h2 className={styles.panelTitle}>{isEditingCycle ? 'Edit cycle' : 'Create cycle'}</h2>
                     </div>
                     <span className={styles.pill}>{workspace.dashboard.activeCycleName ?? 'No active cycle'}</span>
                   </div>
@@ -2042,103 +2044,107 @@ export function AdmissionWorkspace() {
                     </div>
                   ) : (
                     <p className={styles.helperText}>
-                      Select a cycle below to edit its academic year, dates, or status.
+                      Create a new cycle here or choose an existing cycle below to edit its academic year, dates, or status.
                     </p>
                   )}
-                  {isEditingCycle ? (
-                    <form className={styles.formStack} onSubmit={handleCycleSubmit}>
-                      <div className={styles.fieldGrid}>
-                        <Field label="Academic year">
-                          <input
-                            className={styles.input}
-                            value={cycleForm.academicYear}
-                            onChange={(event) =>
-                              setCycleForm((current) => ({
-                                ...current,
-                                academicYear: event.target.value,
-                              }))
-                            }
-                            placeholder="2026/2027"
-                          />
-                        </Field>
-                        <Field label="Cycle name">
-                          <input
-                            className={styles.input}
-                            value={cycleForm.name}
-                            onChange={(event) =>
-                              setCycleForm((current) => ({
-                                ...current,
-                                name: event.target.value,
-                              }))
-                            }
-                            placeholder="2026 Intake"
-                          />
-                        </Field>
-                      </div>
-                      <div className={styles.fieldGrid}>
-                        <Field label="Start date">
-                          <input
-                            type="date"
-                            className={styles.input}
-                            value={cycleForm.startDate}
-                            onChange={(event) =>
-                              setCycleForm((current) => ({
-                                ...current,
-                                startDate: event.target.value,
-                              }))
-                            }
-                          />
-                        </Field>
-                        <Field label="End date">
-                          <input
-                            type="date"
-                            className={styles.input}
-                            value={cycleForm.endDate}
-                            onChange={(event) =>
-                              setCycleForm((current) => ({
-                                ...current,
-                                endDate: event.target.value,
-                              }))
-                            }
-                          />
-                        </Field>
-                      </div>
-                      <div className={styles.fieldGrid}>
-                        <Field label="Status">
-                          <select
-                            className={styles.select}
-                            value={cycleForm.status}
-                            onChange={(event) =>
-                              setCycleForm((current) => ({
-                                ...current,
-                                status: event.target.value as AdmissionCycleStatus,
-                              }))
-                            }
-                          >
-                            {CYCLE_STATUSES.map((status) => (
-                              <option key={status} value={status}>
-                                {statusLabel(status)}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <div />
-                      </div>
-                      <div className={styles.buttonRow}>
-                        <button
-                          className={styles.buttonSecondary}
-                          type="button"
-                          onClick={handleCycleFormReset}
-                          disabled={busy}
+                  <form className={styles.formStack} onSubmit={handleCycleSubmit}>
+                    <div className={styles.fieldGrid}>
+                      <Field label="Academic year">
+                        <input
+                          className={styles.input}
+                          value={cycleForm.academicYear}
+                          onChange={(event) =>
+                            setCycleForm((current) => ({
+                              ...current,
+                              academicYear: event.target.value,
+                            }))
+                          }
+                          placeholder="2026/2027"
+                        />
+                      </Field>
+                      <Field label="Cycle name">
+                        <input
+                          className={styles.input}
+                          value={cycleForm.name}
+                          onChange={(event) =>
+                            setCycleForm((current) => ({
+                              ...current,
+                              name: event.target.value,
+                            }))
+                          }
+                          placeholder="2026 Intake"
+                        />
+                      </Field>
+                    </div>
+                    <div className={styles.fieldGrid}>
+                      <Field label="Start date">
+                        <input
+                          type="date"
+                          className={styles.input}
+                          value={cycleForm.startDate}
+                          onChange={(event) =>
+                            setCycleForm((current) => ({
+                              ...current,
+                              startDate: event.target.value,
+                            }))
+                          }
+                        />
+                      </Field>
+                      <Field label="End date">
+                        <input
+                          type="date"
+                          className={styles.input}
+                          value={cycleForm.endDate}
+                          onChange={(event) =>
+                            setCycleForm((current) => ({
+                              ...current,
+                              endDate: event.target.value,
+                            }))
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <div className={styles.fieldGrid}>
+                      <Field label="Status">
+                        <select
+                          className={styles.select}
+                          value={cycleForm.status}
+                          onChange={(event) =>
+                            setCycleForm((current) => ({
+                              ...current,
+                              status: event.target.value as AdmissionCycleStatus,
+                            }))
+                          }
                         >
-                          Cancel editing
-                        </button>
-                        <button className={styles.button} type="submit" disabled={busy}>
-                          {busy ? 'Saving changes...' : 'Save changes'}
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
+                          {CYCLE_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {statusLabel(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <div />
+                    </div>
+                    <div className={styles.buttonRow}>
+                      <button
+                        className={styles.buttonSecondary}
+                        type="button"
+                        onClick={handleCycleFormReset}
+                        disabled={busy}
+                      >
+                        {isEditingCycle ? 'Cancel editing' : 'Clear form'}
+                      </button>
+                      <button className={styles.button} type="submit" disabled={busy}>
+                        {busy
+                          ? isEditingCycle
+                            ? 'Saving changes...'
+                            : 'Creating cycle...'
+                          : isEditingCycle
+                            ? 'Save changes'
+                            : 'Create cycle'}
+                      </button>
+                    </div>
+                  </form>
                   <div className={styles.softDivider} />
                   <div className={styles.workflowList}>
                     {workspace.cycles.items.map((cycle) => (
@@ -2172,7 +2178,7 @@ export function AdmissionWorkspace() {
                   <div className={styles.panelHeader}>
                     <div>
                       <p className={styles.panelKicker}>Programmes</p>
-                      <h2 className={styles.panelTitle}>Available programmes</h2>
+                      <h2 className={styles.panelTitle}>{isEditingProgramme ? 'Edit programme' : 'Create programme'}</h2>
                     </div>
                     <span className={styles.pill}>{formatNumber(workspace.dashboard.programmes)} active</span>
                   </div>
@@ -2185,102 +2191,106 @@ export function AdmissionWorkspace() {
                     </div>
                   ) : (
                     <p className={styles.helperText}>
-                      Select a programme below to edit its code, name, capacity, or active status.
+                      Create a new programme here or pick an existing one below to edit its code, name, capacity, or active status.
                     </p>
                   )}
-                  {isEditingProgramme ? (
-                    <form className={styles.formStack} onSubmit={handleProgrammeSubmit}>
-                      <div className={styles.fieldGrid}>
-                        <Field label="Programme code">
-                          <input
-                            className={styles.input}
-                            value={programmeForm.code}
-                            onChange={(event) =>
-                              setProgrammeForm((current) => ({
-                                ...current,
-                                code: event.target.value,
-                              }))
-                            }
-                            placeholder="SCI-2026"
-                          />
-                        </Field>
-                        <Field label="Programme name">
-                          <input
-                            className={styles.input}
-                            value={programmeForm.name}
-                            onChange={(event) =>
-                              setProgrammeForm((current) => ({
-                                ...current,
-                                name: event.target.value,
-                              }))
-                            }
-                            placeholder="General Science"
-                          />
-                        </Field>
-                      </div>
-                      <div className={styles.fieldGrid}>
-                        <Field label="Level">
-                          <input
-                            className={styles.input}
-                            value={programmeForm.level}
-                            onChange={(event) =>
-                              setProgrammeForm((current) => ({
-                                ...current,
-                                level: event.target.value,
-                              }))
-                            }
-                            placeholder="secondary"
-                          />
-                        </Field>
-                        <Field label="Capacity">
-                          <input
-                            type="number"
-                            min={1}
-                            className={styles.input}
-                            value={programmeForm.capacity}
-                            onChange={(event) =>
-                              setProgrammeForm((current) => ({
-                                ...current,
-                                capacity: event.target.value,
-                              }))
-                            }
-                            placeholder="120"
-                          />
-                        </Field>
-                      </div>
-                      <div className={styles.fieldGrid}>
-                        <Field label="Active state">
-                          <select
-                            className={styles.select}
-                            value={programmeForm.active ? 'true' : 'false'}
-                            onChange={(event) =>
-                              setProgrammeForm((current) => ({
-                                ...current,
-                                active: event.target.value === 'true',
-                              }))
-                            }
-                          >
-                            <option value="true">Active</option>
-                            <option value="false">Inactive</option>
-                          </select>
-                        </Field>
-                        <div />
-                      </div>
-                      <div className={styles.buttonRow}>
-                        <button
-                          className={styles.buttonSecondary}
-                          type="button"
-                          onClick={handleProgrammeFormReset}
-                          disabled={busy}
+                  <form className={styles.formStack} onSubmit={handleProgrammeSubmit}>
+                    <div className={styles.fieldGrid}>
+                      <Field label="Programme code">
+                        <input
+                          className={styles.input}
+                          value={programmeForm.code}
+                          onChange={(event) =>
+                            setProgrammeForm((current) => ({
+                              ...current,
+                              code: event.target.value,
+                            }))
+                          }
+                          placeholder="SCI-2026"
+                        />
+                      </Field>
+                      <Field label="Programme name">
+                        <input
+                          className={styles.input}
+                          value={programmeForm.name}
+                          onChange={(event) =>
+                            setProgrammeForm((current) => ({
+                              ...current,
+                              name: event.target.value,
+                            }))
+                          }
+                          placeholder="General Science"
+                        />
+                      </Field>
+                    </div>
+                    <div className={styles.fieldGrid}>
+                      <Field label="Level">
+                        <input
+                          className={styles.input}
+                          value={programmeForm.level}
+                          onChange={(event) =>
+                            setProgrammeForm((current) => ({
+                              ...current,
+                              level: event.target.value,
+                            }))
+                          }
+                          placeholder="secondary"
+                        />
+                      </Field>
+                      <Field label="Capacity">
+                        <input
+                          type="number"
+                          min={1}
+                          className={styles.input}
+                          value={programmeForm.capacity}
+                          onChange={(event) =>
+                            setProgrammeForm((current) => ({
+                              ...current,
+                              capacity: event.target.value,
+                            }))
+                          }
+                          placeholder="120"
+                        />
+                      </Field>
+                    </div>
+                    <div className={styles.fieldGrid}>
+                      <Field label="Active state">
+                        <select
+                          className={styles.select}
+                          value={programmeForm.active ? 'true' : 'false'}
+                          onChange={(event) =>
+                            setProgrammeForm((current) => ({
+                              ...current,
+                              active: event.target.value === 'true',
+                            }))
+                          }
                         >
-                          Cancel editing
-                        </button>
-                        <button className={styles.button} type="submit" disabled={busy}>
-                          {busy ? 'Saving changes...' : 'Save changes'}
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
+                          <option value="true">Active</option>
+                          <option value="false">Inactive</option>
+                        </select>
+                      </Field>
+                      <div />
+                    </div>
+                    <div className={styles.buttonRow}>
+                      <button
+                        className={styles.buttonSecondary}
+                        type="button"
+                        onClick={handleProgrammeFormReset}
+                        disabled={busy}
+                      >
+                        {isEditingProgramme ? 'Cancel editing' : 'Clear form'}
+                      </button>
+                      <button className={styles.button} type="submit" disabled={busy}>
+                        {busy
+                          ? isEditingProgramme
+                            ? 'Saving changes...'
+                            : 'Creating programme...'
+                          : isEditingProgramme
+                            ? 'Save changes'
+                            : 'Create programme'}
+                      </button>
+                    </div>
+                  </form>
                   <div className={styles.softDivider} />
                   <div className={styles.workflowList}>
                     {workspace.programmes.items.map((programme) => (

@@ -23,6 +23,8 @@ import type { ListAdmissionQueryDto } from './dto/list-admission-query.dto';
 import type { OfferAdmissionDto } from './dto/offer-admission.dto';
 import type { RejectApplicationDto } from './dto/reject-application.dto';
 import type { ScheduleInterviewDto } from './dto/schedule-interview.dto';
+import type { CreateCycleDto } from './dto/create-cycle.dto';
+import type { CreateProgrammeDto } from './dto/create-programme.dto';
 import type { UpdateApplicantDto } from './dto/update-applicant.dto';
 import type { UpdateApplicationDto } from './dto/update-application.dto';
 import type { UpdateCycleDto } from './dto/update-cycle.dto';
@@ -56,6 +58,14 @@ export class AdmissionController {
     return this.admissionService.listCycles(this.tenantId(request), query);
   }
 
+  @Post('cycles')
+  @AccessScope({ productCode: 'admission', permission: 'admission.write' })
+  @ApiOperation({ summary: 'Create a cycle' })
+  @ApiOkResponse({ type: AdmissionCycleDto })
+  createCycle(@Req() request: RequestWithContext, @Body() dto: CreateCycleDto) {
+    return this.admissionService.createCycle(this.tenantId(request), this.actorUserId(request), dto);
+  }
+
   @Patch('cycles/:id')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Update a cycle' })
@@ -68,6 +78,14 @@ export class AdmissionController {
   @ApiOkResponse({ type: AdmissionProgrammeDto, isArray: true })
   listProgrammes(@Req() request: RequestWithContext, @Query() query: ListAdmissionQueryDto) {
     return this.admissionService.listProgrammes(this.tenantId(request), query);
+  }
+
+  @Post('programmes')
+  @AccessScope({ productCode: 'admission', permission: 'admission.write' })
+  @ApiOperation({ summary: 'Create a programme' })
+  @ApiOkResponse({ type: AdmissionProgrammeDto })
+  createProgramme(@Req() request: RequestWithContext, @Body() dto: CreateProgrammeDto) {
+    return this.admissionService.createProgramme(this.tenantId(request), this.actorUserId(request), dto);
   }
 
   @Patch('programmes/:id')

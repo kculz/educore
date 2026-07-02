@@ -229,6 +229,26 @@ export interface UpdateApplicantInput extends Partial<CreateApplicantInput> {
   status?: AdmissionApplicantStatus;
 }
 
+export interface CreateCycleInput {
+  academicYear: string;
+  name: string;
+  startDate: string;
+  endDate?: string | null;
+  status?: AdmissionCycleStatus;
+}
+
+export interface UpdateCycleInput extends Partial<CreateCycleInput> {}
+
+export interface CreateProgrammeInput {
+  code: string;
+  name: string;
+  level: string;
+  capacity: number;
+  active?: boolean;
+}
+
+export interface UpdateProgrammeInput extends Partial<CreateProgrammeInput> {}
+
 export interface CreateApplicationInput {
   applicantId: string;
   programmeId: string;
@@ -241,22 +261,6 @@ export interface UpdateApplicationInput {
   programmeId?: string;
   cycleId?: string | null;
   submissionNotes?: string | null;
-}
-
-export interface UpdateCycleInput {
-  academicYear?: string;
-  name?: string;
-  startDate?: string;
-  endDate?: string | null;
-  status?: AdmissionCycleStatus;
-}
-
-export interface UpdateProgrammeInput {
-  code?: string;
-  name?: string;
-  level?: string;
-  capacity?: number;
-  active?: boolean;
 }
 
 export interface ScheduleInterviewInput {
@@ -351,12 +355,32 @@ export async function listAdmissionCycles(session: AdmissionSession, query: Admi
   });
 }
 
+export async function createAdmissionCycle(session: AdmissionSession, input: CreateCycleInput) {
+  return requestJson<AdmissionCycle>('/admission/cycles', {
+    method: 'POST',
+    tenantId: session.tenantId,
+    token: session.accessToken,
+    productCode: ADMISSION_PRODUCT_CODE,
+    body: JSON.stringify(input),
+  });
+}
+
 export async function listAdmissionProgrammes(session: AdmissionSession, query: AdmissionQuery = {}) {
   return requestJson<ApiPaginatedResponse<AdmissionProgramme>>('/admission/programmes', {
     tenantId: session.tenantId,
     token: session.accessToken,
     productCode: ADMISSION_PRODUCT_CODE,
     query,
+  });
+}
+
+export async function createAdmissionProgramme(session: AdmissionSession, input: CreateProgrammeInput) {
+  return requestJson<AdmissionProgramme>('/admission/programmes', {
+    method: 'POST',
+    tenantId: session.tenantId,
+    token: session.accessToken,
+    productCode: ADMISSION_PRODUCT_CODE,
+    body: JSON.stringify(input),
   });
 }
 

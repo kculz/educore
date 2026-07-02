@@ -32,6 +32,35 @@ describe('AdmissionService', () => {
     expect(programmes.items.length).toBeGreaterThan(0);
   });
 
+  it('creates cycles and programmes', () => {
+    const { platformState, service } = createService();
+    const tenant = platformState.getTenantBySlug('miami-academy');
+    const initialCycles = service.listCycles(tenant!.id).items.length;
+    const initialProgrammes = service.listProgrammes(tenant!.id).items.length;
+
+    const cycle = service.createCycle(tenant!.id, null, {
+      academicYear: '2026/2027',
+      name: '2026 Intake',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      status: 'open',
+    });
+    const programme = service.createProgramme(tenant!.id, null, {
+      code: 'ENG-2026',
+      name: 'Engineering',
+      level: 'tertiary',
+      capacity: 75,
+      active: true,
+    });
+
+    expect(cycle.academicYear).toBe('2026/2027');
+    expect(cycle.status).toBe('open');
+    expect(programme.code).toBe('ENG-2026');
+    expect(programme.active).toBe(true);
+    expect(service.listCycles(tenant!.id).items.length).toBe(initialCycles + 1);
+    expect(service.listProgrammes(tenant!.id).items.length).toBe(initialProgrammes + 1);
+  });
+
   it('updates cycles and programmes', () => {
     const { platformState, service } = createService();
     const tenant = platformState.getTenantBySlug('miami-academy');
