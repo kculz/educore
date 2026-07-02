@@ -5,6 +5,18 @@ export const API_BASE_URL = ensureTrailingSlash(process.env.NEXT_PUBLIC_API_BASE
 export const ADMISSION_PRODUCT_CODE = 'admission';
 export const PLATFORM_PRODUCT_CODE = 'platform';
 
+export type AdmissionGender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+
+export type AdmissionApplicantStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'offered'
+  | 'accepted'
+  | 'enrolled'
+  | 'withdrawn';
+
 export interface ApiTenant {
   id: string;
   slug: string;
@@ -82,9 +94,9 @@ export interface AdmissionApplicant {
   email: string | null;
   phoneNumber: string | null;
   dateOfBirth: string | null;
-  gender: string | null;
+  gender: AdmissionGender | null;
   fullName: string;
-  status: string;
+  status: AdmissionApplicantStatus;
   guardian: AdmissionGuardian | null;
   guardianName: string | null;
   deletedAt: string | null;
@@ -193,12 +205,16 @@ export interface CreateGuardianInput {
 export interface CreateApplicantInput {
   firstName: string;
   lastName: string;
-  otherNames?: string;
+  otherNames?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
   dateOfBirth?: string | null;
-  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
+  gender?: AdmissionGender | null;
   guardian?: CreateGuardianInput | null;
+}
+
+export interface UpdateApplicantInput extends Partial<CreateApplicantInput> {
+  status?: AdmissionApplicantStatus;
 }
 
 export interface CreateApplicationInput {
@@ -312,6 +328,20 @@ export async function listAdmissionProgrammes(session: AdmissionSession, query: 
 export async function createAdmissionApplicant(session: AdmissionSession, input: CreateApplicantInput) {
   return requestJson<AdmissionApplicant>('/admission/applicants', {
     method: 'POST',
+    tenantId: session.tenantId,
+    token: session.accessToken,
+    productCode: ADMISSION_PRODUCT_CODE,
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateAdmissionApplicant(
+  session: AdmissionSession,
+  applicantId: string,
+  input: UpdateApplicantInput,
+) {
+  return requestJson<AdmissionApplicant>(`/admission/applicants/${applicantId}`, {
+    method: 'PATCH',
     tenantId: session.tenantId,
     token: session.accessToken,
     productCode: ADMISSION_PRODUCT_CODE,

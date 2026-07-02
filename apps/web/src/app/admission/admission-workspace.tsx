@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 
 import {
   acceptAdmissionOffer,
@@ -24,15 +24,20 @@ import {
   rejectAdmissionApplication,
   scheduleAdmissionInterview,
   submitAdmissionApplication,
+  updateAdmissionApplicant,
   type AdmissionApplicant,
+  type AdmissionApplicantStatus,
   type AdmissionApplication,
   type AdmissionCycle,
   type AdmissionDashboard,
+  type AdmissionGender,
   type AdmissionProgramme,
   type AdmissionSession,
   type ApiHealthResponse,
   type ApiPaginatedResponse,
   type ApiTenant,
+  type CreateApplicantInput,
+  type UpdateApplicantInput,
 } from '@web/lib/educore-api';
 import styles from './admission-workspace.module.css';
 
@@ -53,7 +58,18 @@ const INITIAL_QUERY = {
   applicationPage: 1,
 };
 
-const INITIAL_APPLICANT_FORM = {
+const APPLICANT_STATUSES: AdmissionApplicantStatus[] = [
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'offered',
+  'accepted',
+  'enrolled',
+  'withdrawn',
+];
+
+const INITIAL_APPLICANT_FORM: ApplicantFormState = {
   firstName: '',
   lastName: '',
   otherNames: '',
@@ -65,6 +81,7 @@ const INITIAL_APPLICANT_FORM = {
   guardianRelationship: '',
   guardianEmail: '',
   guardianPhoneNumber: '',
+  status: 'draft',
 };
 
 const INITIAL_APPLICATION_FORM = {
@@ -88,8 +105,23 @@ const APPLICATION_STATUSES = [
 
 type WorkspaceQuery = typeof INITIAL_QUERY;
 type LoginFormState = typeof INITIAL_LOGIN;
-type ApplicantFormState = typeof INITIAL_APPLICANT_FORM;
 type ApplicationFormState = typeof INITIAL_APPLICATION_FORM;
+type ApplicantFormMode = 'create' | 'edit';
+
+type ApplicantFormState = {
+  firstName: string;
+  lastName: string;
+  otherNames: string;
+  email: string;
+  phoneNumber: string;
+  dateOfBirth: string;
+  gender: AdmissionGender | '';
+  guardianFullName: string;
+  guardianRelationship: string;
+  guardianEmail: string;
+  guardianPhoneNumber: string;
+  status: AdmissionApplicantStatus;
+};
 
 type FlashMessage = {
   kind: 'success' | 'error';
@@ -184,38 +216,75 @@ function queryValue(value: string) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function buildApplicantInput(form: ApplicantFormState) {
+function buildApplicantBaseInput(form: ApplicantFormState) {
+  const gender = queryValue(form.gender);
+
+  return {
+    firstName: form.firstName.trim(),
+    lastName: form.lastName.trim(),
+    otherNames: queryValue(form.otherNames) ?? null,
+    email: queryValue(form.email) ?? null,
+    phoneNumber: queryValue(form.phoneNumber) ?? null,
+    dateOfBirth: queryValue(form.dateOfBirth) ?? null,
+    gender: gender ? (gender as AdmissionGender) : null,
+  };
+}
+
+function buildGuardianInput(form: ApplicantFormState, mode: ApplicantFormMode) {
   const guardianHasData =
     form.guardianFullName.trim().length > 0 ||
     form.guardianRelationship.trim().length > 0 ||
     form.guardianEmail.trim().length > 0 ||
     form.guardianPhoneNumber.trim().length > 0;
 
-  if (guardianHasData && (form.guardianFullName.trim().length === 0 || form.guardianRelationship.trim().length === 0)) {
+  if (!guardianHasData) {
+    return mode === 'edit' ? null : undefined;
+  }
+
+  if (
+    form.guardianFullName.trim().length === 0 ||
+    form.guardianRelationship.trim().length === 0
+  ) {
     throw new Error('Guardian full name and relationship are required when adding guardian details.');
   }
 
   return {
-    firstName: form.firstName.trim(),
-    lastName: form.lastName.trim(),
-    otherNames: queryValue(form.otherNames),
-    email: queryValue(form.email) ?? null,
-    phoneNumber: queryValue(form.phoneNumber) ?? null,
-    dateOfBirth: queryValue(form.dateOfBirth) ?? null,
-    gender: queryValue(form.gender) as
-      | 'male'
-      | 'female'
-      | 'other'
-      | 'prefer_not_to_say'
-      | undefined,
-    guardian: guardianHasData
-      ? {
-          fullName: form.guardianFullName.trim(),
-          relationship: form.guardianRelationship.trim(),
-          email: queryValue(form.guardianEmail) ?? null,
-          phoneNumber: queryValue(form.guardianPhoneNumber) ?? null,
-        }
-      : undefined,
+    fullName: form.guardianFullName.trim(),
+    relationship: form.guardianRelationship.trim(),
+    email: queryValue(form.guardianEmail) ?? null,
+    phoneNumber: queryValue(form.guardianPhoneNumber) ?? null,
+  };
+}
+
+function buildApplicantCreateInput(form: ApplicantFormState): CreateApplicantInput {
+  return {
+    ...buildApplicantBaseInput(form),
+    guardian: buildGuardianInput(form, 'create'),
+  };
+}
+
+function buildApplicantUpdateInput(form: ApplicantFormState): UpdateApplicantInput {
+  return {
+    ...buildApplicantBaseInput(form),
+    guardian: buildGuardianInput(form, 'edit'),
+    status: form.status,
+  };
+}
+
+function applicantFormFromApplicant(applicant: AdmissionApplicant): ApplicantFormState {
+  return {
+    firstName: applicant.firstName,
+    lastName: applicant.lastName,
+    otherNames: applicant.otherNames ?? '',
+    email: applicant.email ?? '',
+    phoneNumber: applicant.phoneNumber ?? '',
+    dateOfBirth: applicant.dateOfBirth ?? '',
+    gender: applicant.gender ?? '',
+    guardianFullName: applicant.guardian?.fullName ?? '',
+    guardianRelationship: applicant.guardian?.relationship ?? '',
+    guardianEmail: applicant.guardian?.email ?? '',
+    guardianPhoneNumber: applicant.guardian?.phoneNumber ?? '',
+    status: applicant.status,
   };
 }
 
@@ -257,7 +326,10 @@ export function AdmissionWorkspace() {
   const [loginForm, setLoginForm] = useState<LoginFormState>(INITIAL_LOGIN);
   const [query, setQuery] = useState<WorkspaceQuery>(INITIAL_QUERY);
   const [applicantForm, setApplicantForm] = useState<ApplicantFormState>(INITIAL_APPLICANT_FORM);
+  const [editingApplicantId, setEditingApplicantId] = useState<string | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationFormState>(INITIAL_APPLICATION_FORM);
+  const applicantFormRef = useRef<HTMLDivElement | null>(null);
+  const isEditingApplicant = editingApplicantId !== null;
 
   const refreshWorkspace = async (targetSession: AdmissionSession, targetQuery: WorkspaceQuery = query) => {
     setWorkspaceLoading(true);
@@ -431,6 +503,7 @@ export function AdmissionWorkspace() {
     setWorkspaceError(null);
     setQuery(INITIAL_QUERY);
     setApplicantForm(INITIAL_APPLICANT_FORM);
+    setEditingApplicantId(null);
     setApplicationForm(INITIAL_APPLICATION_FORM);
     setFlash({
       kind: 'success',
@@ -438,7 +511,22 @@ export function AdmissionWorkspace() {
     });
   }
 
-  async function handleCreateApplicant(event: FormEvent<HTMLFormElement>) {
+  function handleApplicantEdit(applicant: AdmissionApplicant) {
+    setApplicantForm(applicantFormFromApplicant(applicant));
+    setEditingApplicantId(applicant.id);
+    setApplicationForm((current) => ({
+      ...current,
+      applicantId: applicant.id,
+    }));
+    applicantFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleApplicantFormReset() {
+    setApplicantForm(INITIAL_APPLICANT_FORM);
+    setEditingApplicantId(null);
+  }
+
+  async function handleApplicantSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session) {
       return;
@@ -448,27 +536,41 @@ export function AdmissionWorkspace() {
     setFlash(null);
 
     try {
-      const payload = buildApplicantInput(applicantForm);
+      const editingApplicant = isEditingApplicant;
+      const applicantId = editingApplicantId;
+      const payload = buildApplicantBaseInput(applicantForm);
       if (!payload.firstName || !payload.lastName) {
         throw new Error('Applicant first name and last name are required.');
       }
+      if (editingApplicant && !applicantId) {
+        throw new Error('Unable to determine the applicant being edited.');
+      }
+      const targetApplicantId = applicantId as string;
 
-      const created = await createAdmissionApplicant(session, payload);
+      const saved = editingApplicant
+        ? await updateAdmissionApplicant(session, targetApplicantId, buildApplicantUpdateInput(applicantForm))
+        : await createAdmissionApplicant(session, buildApplicantCreateInput(applicantForm));
+
       setApplicantForm(INITIAL_APPLICANT_FORM);
+      setEditingApplicantId(null);
       setApplicationForm((current) => ({
         ...current,
-        applicantId: created.id,
+        applicantId: saved.id,
       }));
       setFlash({
         kind: 'success',
-        message: `${created.fullName} was added to the applicant register.`,
+        message: editingApplicant
+          ? `${saved.fullName} was updated in the applicant register.`
+          : `${saved.fullName} was added to the applicant register.`,
       });
       await refreshWorkspace(session, query);
     } catch (error) {
       const message =
         error instanceof EduCoreApiError || error instanceof Error
           ? error.message
-          : 'Unable to create the applicant record.';
+          : isEditingApplicant
+            ? 'Unable to update the applicant record.'
+            : 'Unable to create the applicant record.';
       setFlash({ kind: 'error', message });
     } finally {
       setBusy(false);
@@ -594,6 +696,12 @@ export function AdmissionWorkspace() {
 
     try {
       await deleteAdmissionApplicant(session, applicantId);
+      if (editingApplicantId === applicantId) {
+        handleApplicantFormReset();
+      }
+      setApplicationForm((current) =>
+        current.applicantId === applicantId ? { ...current, applicantId: '' } : current,
+      );
       setFlash({ kind: 'success', message: `${applicantName} was withdrawn.` });
       await refreshWorkspace(session, query);
     } catch (error) {
@@ -999,14 +1107,29 @@ export function AdmissionWorkspace() {
               </section>
 
               <section className={styles.split}>
-                <div className={styles.panel}>
+                <div className={styles.panel} ref={applicantFormRef}>
                   <div className={styles.panelHeader}>
                     <div>
                       <p className={styles.panelKicker}>Applicant intake</p>
-                      <h2 className={styles.panelTitle}>Create applicant</h2>
+                      <h2 className={styles.panelTitle}>{isEditingApplicant ? 'Edit applicant' : 'Create applicant'}</h2>
                     </div>
+                    <span className={`${styles.pill} ${isEditingApplicant ? styles.pillWarning : styles.pillSuccess}`}>
+                      {isEditingApplicant ? 'Editing existing record' : 'New applicant'}
+                    </span>
                   </div>
-                  <form className={styles.formStack} onSubmit={handleCreateApplicant}>
+                  {isEditingApplicant ? (
+                    <div className={styles.banner}>
+                      <strong>Editing an existing applicant</strong>
+                      <p className={styles.helperText}>
+                        Update the live record below. Clearing the guardian fields will remove the linked guardian on save.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className={styles.helperText}>
+                      New applicants begin in draft status and can be linked to an application immediately after saving.
+                    </p>
+                  )}
+                  <form className={styles.formStack} onSubmit={handleApplicantSubmit}>
                     <div className={styles.fieldGrid}>
                       <Field label="First name">
                         <input
@@ -1056,14 +1179,15 @@ export function AdmissionWorkspace() {
                           onChange={(event) =>
                             setApplicantForm((current) => ({
                               ...current,
-                              gender: event.target.value,
+                              gender: event.target.value as AdmissionGender | '',
                             }))
                           }
                         >
-                          <option value="">Prefer not to say</option>
+                          <option value="">Select gender</option>
                           <option value="male">Male</option>
                           <option value="female">Female</option>
                           <option value="other">Other</option>
+                          <option value="prefer_not_to_say">Prefer not to say</option>
                         </select>
                       </Field>
                     </div>
@@ -1171,9 +1295,46 @@ export function AdmissionWorkspace() {
                       </Field>
                     </div>
 
-                    <button className={styles.button} type="submit" disabled={busy}>
-                      {busy ? 'Saving applicant...' : 'Create applicant'}
-                    </button>
+                    {isEditingApplicant ? (
+                      <Field label="Applicant status">
+                        <select
+                          className={styles.select}
+                          value={applicantForm.status}
+                          onChange={(event) =>
+                            setApplicantForm((current) => ({
+                              ...current,
+                              status: event.target.value as AdmissionApplicantStatus,
+                            }))
+                          }
+                        >
+                          {APPLICANT_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {statusLabel(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    ) : null}
+
+                    <div className={styles.buttonRow}>
+                      <button
+                        className={styles.buttonSecondary}
+                        type="button"
+                        onClick={handleApplicantFormReset}
+                        disabled={busy}
+                      >
+                        {isEditingApplicant ? 'Cancel editing' : 'Clear form'}
+                      </button>
+                      <button className={styles.button} type="submit" disabled={busy}>
+                        {busy
+                          ? isEditingApplicant
+                            ? 'Saving changes...'
+                            : 'Saving applicant...'
+                          : isEditingApplicant
+                            ? 'Save changes'
+                            : 'Create applicant'}
+                      </button>
+                    </div>
                   </form>
                 </div>
 
@@ -1321,14 +1482,24 @@ export function AdmissionWorkspace() {
                             </td>
                             <td className={styles.tableCell}>{formatDateTime(applicant.updatedAt)}</td>
                             <td className={styles.tableCellRight}>
-                              <button
-                                className={styles.buttonDangerSmall}
-                                type="button"
-                                onClick={() => handleApplicantDelete(applicant.id, applicant.fullName)}
-                                disabled={busy}
-                              >
-                                Withdraw
-                              </button>
+                              <div className={styles.actionCluster}>
+                                <button
+                                  className={styles.buttonSecondarySmall}
+                                  type="button"
+                                  onClick={() => handleApplicantEdit(applicant)}
+                                  disabled={busy}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className={styles.buttonDangerSmall}
+                                  type="button"
+                                  onClick={() => handleApplicantDelete(applicant.id, applicant.fullName)}
+                                  disabled={busy}
+                                >
+                                  Withdraw
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
