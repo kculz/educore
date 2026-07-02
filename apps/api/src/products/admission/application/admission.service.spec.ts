@@ -32,7 +32,43 @@ describe('AdmissionService', () => {
     expect(programmes.items.length).toBeGreaterThan(0);
   });
 
-  it('creates and submits an application flow', () => {
+  it('updates a draft application before submission', () => {
+    const { platformState, service } = createService();
+    const tenant = platformState.getTenantBySlug('miami-academy');
+    const applicant = service.createApplicant(tenant!.id, null, {
+      firstName: 'Jane',
+      lastName: 'Doe',
+    });
+    const secondApplicant = service.createApplicant(tenant!.id, null, {
+      firstName: 'Amina',
+      lastName: 'Moyo',
+    });
+    const programme = service.listProgrammes(tenant!.id).items[0];
+    const secondProgramme = service.listProgrammes(tenant!.id).items[1];
+
+    expect(programme).toBeDefined();
+    expect(secondProgramme).toBeDefined();
+
+    const application = service.createApplication(tenant!.id, null, {
+      applicantId: applicant.id,
+      programmeId: programme!.id,
+      submissionNotes: 'Original notes',
+    });
+    const updated = service.updateApplication(tenant!.id, null, application.id, {
+      applicantId: secondApplicant.id,
+      programmeId: secondProgramme!.id,
+      submissionNotes: 'Updated notes',
+    });
+    const submitted = service.submitApplication(tenant!.id, null, updated.id);
+
+    expect(updated.applicantId).toBe(secondApplicant.id);
+    expect(updated.programmeId).toBe(secondProgramme!.id);
+    expect(updated.submissionNotes).toBe('Updated notes');
+    expect(submitted.status).toBe('submitted');
+    expect(submitted.applicantName).toContain('Amina');
+  });
+
+  it('prevents editing submitted applications', () => {
     const { platformState, service } = createService();
     const tenant = platformState.getTenantBySlug('miami-academy');
     const applicant = service.createApplicant(tenant!.id, null, {
@@ -40,16 +76,16 @@ describe('AdmissionService', () => {
       lastName: 'Doe',
     });
     const programme = service.listProgrammes(tenant!.id).items[0];
-
-    expect(programme).toBeDefined();
-
     const application = service.createApplication(tenant!.id, null, {
       applicantId: applicant.id,
       programmeId: programme!.id,
     });
-    const submitted = service.submitApplication(tenant!.id, null, application.id);
+    service.submitApplication(tenant!.id, null, application.id);
 
-    expect(submitted.status).toBe('submitted');
-    expect(submitted.applicantName).toContain('Jane');
+    expect(() =>
+      service.updateApplication(tenant!.id, null, application.id, {
+        submissionNotes: 'Should fail',
+      }),
+    ).toThrow('Only draft applications can be edited');
   });
 });

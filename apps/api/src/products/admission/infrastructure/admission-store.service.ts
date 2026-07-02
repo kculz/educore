@@ -18,6 +18,7 @@ import type { OfferAdmissionDto } from '../api/dto/offer-admission.dto';
 import type { RejectApplicationDto } from '../api/dto/reject-application.dto';
 import type { ScheduleInterviewDto } from '../api/dto/schedule-interview.dto';
 import type { UpdateApplicantDto } from '../api/dto/update-applicant.dto';
+import type { UpdateApplicationDto } from '../api/dto/update-application.dto';
 
 function now() {
   return new Date().toISOString();
@@ -188,17 +189,7 @@ export class AdmissionStoreService {
 
     const programme = this.mustGetProgramme(tenantId, input.programmeId);
     const cycle = input.cycleId ? this.mustGetCycle(tenantId, input.cycleId) : this.getOpenCycle(tenantId);
-    const duplicate = Array.from(this.applications.values()).find(
-      (candidate) =>
-        candidate.tenantId === tenantId &&
-        candidate.applicantId === applicant.id &&
-        candidate.cycleId === cycle.id &&
-        candidate.programmeId === programme.id &&
-        candidate.status !== 'enrolled',
-    );
-    if (duplicate) {
-      throw new ConflictException('Application already exists for this applicant, programme, and cycle');
-    }
+    this.assertApplicationCombinationAvailable(tenantId, applicant.id, cycle.id, programme.id);
 
     const application: AdmissionApplication = {
       id: randomUUID(),
@@ -225,6 +216,43 @@ export class AdmissionStoreService {
       createdAt: now(),
       updatedAt: now(),
     };
+    this.applications.set(application.id, application);
+    return clone(application);
+  }
+
+  updateApplication(tenantId: string, applicationId: string, input: UpdateApplicationDto) {
+    this.ensureTenantSeed(tenantId);
+    const application = this.mustGetApplication(tenantId, applicationId);
+    if (application.status !== 'draft') {
+      throw new ConflictException('Only draft applications can be edited');
+    }
+
+    const applicantId = input.applicantId ?? application.applicantId;
+    const programmeId = input.programmeId ?? application.programmeId;
+    const cycleId = input.cycleId ?? application.cycleId;
+
+    const applicant = this.mustGetApplicant(tenantId, applicantId);
+    if (applicant.deletedAt) {
+      throw new ConflictException('Applicant has been withdrawn');
+    }
+    this.mustGetProgramme(tenantId, programmeId);
+    this.mustGetCycle(tenantId, cycleId);
+    this.assertApplicationCombinationAvailable(tenantId, applicantId, cycleId, programmeId, application.id);
+
+    if (input.applicantId !== undefined) {
+      application.applicantId = applicantId;
+    }
+    if (input.programmeId !== undefined) {
+      application.programmeId = programmeId;
+    }
+    if (input.cycleId !== undefined) {
+      application.cycleId = cycleId;
+    }
+    if (input.submissionNotes !== undefined) {
+      application.submissionNotes = input.submissionNotes ?? null;
+    }
+
+    application.updatedAt = now();
     this.applications.set(application.id, application);
     return clone(application);
   }
@@ -493,6 +521,35 @@ export class AdmissionStoreService {
     return Array.from(collection.values())
       .filter((entry) => entry.tenantId === tenantId)
       .map(clone);
+  }
+
+  private assertApplicationCombinationAvailable(
+    tenantId: string,
+    applicantId: string,
+    cycleId: string,
+    programmeId: string,
+    applicationId?: string,
+  ) {
+    const duplicate = Array.from(this.applications.values()).find((candidate) => {
+      if (candidate.tenantId !== tenantId) {
+        return false;
+      }
+
+      if (applicationId && candidate.id === applicationId) {
+        return false;
+      }
+
+      return (
+        candidate.applicantId === applicantId &&
+        candidate.cycleId === cycleId &&
+        candidate.programmeId === programmeId &&
+        candidate.status !== 'enrolled'
+      );
+    });
+
+    if (duplicate) {
+      throw new ConflictException('Application already exists for this applicant, programme, and cycle');
+    }
   }
 
   private assertTenantScopedRecord<T extends { tenantId: string } | undefined | null>(

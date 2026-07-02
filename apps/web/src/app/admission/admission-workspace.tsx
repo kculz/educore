@@ -25,9 +25,11 @@ import {
   scheduleAdmissionInterview,
   submitAdmissionApplication,
   updateAdmissionApplicant,
+  updateAdmissionApplication,
   type AdmissionApplicant,
   type AdmissionApplicantStatus,
   type AdmissionApplication,
+  type AdmissionApplicationStatus,
   type AdmissionCycle,
   type AdmissionDashboard,
   type AdmissionGender,
@@ -37,6 +39,7 @@ import {
   type ApiPaginatedResponse,
   type ApiTenant,
   type CreateApplicantInput,
+  type UpdateApplicationInput,
   type UpdateApplicantInput,
 } from '@web/lib/educore-api';
 import styles from './admission-workspace.module.css';
@@ -91,7 +94,7 @@ const INITIAL_APPLICATION_FORM = {
   submissionNotes: '',
 };
 
-const APPLICATION_STATUSES = [
+const APPLICATION_STATUSES: Array<{ value: AdmissionApplicationStatus | ''; label: string }> = [
   { value: '', label: 'All statuses' },
   { value: 'draft', label: 'Draft' },
   { value: 'submitted', label: 'Submitted' },
@@ -288,6 +291,33 @@ function applicantFormFromApplicant(applicant: AdmissionApplicant): ApplicantFor
   };
 }
 
+function buildApplicationCreateInput(form: ApplicationFormState) {
+  return {
+    applicantId: form.applicantId.trim(),
+    programmeId: form.programmeId.trim(),
+    cycleId: queryValue(form.cycleId) ?? null,
+    submissionNotes: queryValue(form.submissionNotes) ?? null,
+  };
+}
+
+function buildApplicationUpdateInput(form: ApplicationFormState): UpdateApplicationInput {
+  return {
+    applicantId: form.applicantId.trim(),
+    programmeId: form.programmeId.trim(),
+    cycleId: queryValue(form.cycleId),
+    submissionNotes: queryValue(form.submissionNotes) ?? null,
+  };
+}
+
+function applicationFormFromApplication(application: AdmissionApplication): ApplicationFormState {
+  return {
+    applicantId: application.applicantId,
+    programmeId: application.programmeId,
+    cycleId: application.cycleId,
+    submissionNotes: application.submissionNotes ?? '',
+  };
+}
+
 function readStoredSession() {
   if (typeof window === 'undefined') {
     return null;
@@ -328,8 +358,12 @@ export function AdmissionWorkspace() {
   const [applicantForm, setApplicantForm] = useState<ApplicantFormState>(INITIAL_APPLICANT_FORM);
   const [editingApplicantId, setEditingApplicantId] = useState<string | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationFormState>(INITIAL_APPLICATION_FORM);
+  const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
+  const [editingApplicationSnapshot, setEditingApplicationSnapshot] = useState<AdmissionApplication | null>(null);
   const applicantFormRef = useRef<HTMLDivElement | null>(null);
+  const applicationFormRef = useRef<HTMLDivElement | null>(null);
   const isEditingApplicant = editingApplicantId !== null;
+  const isEditingApplication = editingApplicationId !== null;
 
   const refreshWorkspace = async (targetSession: AdmissionSession, targetQuery: WorkspaceQuery = query) => {
     setWorkspaceLoading(true);
@@ -445,6 +479,19 @@ export function AdmissionWorkspace() {
     return () => window.clearTimeout(timeout);
   }, [flash]);
 
+  useEffect(() => {
+    if (!workspace || !editingApplicationId) {
+      return;
+    }
+
+    const currentApplication = workspace.applications.items.find((application) => application.id === editingApplicationId);
+    if (currentApplication && currentApplication.status !== 'draft') {
+      setApplicationForm(INITIAL_APPLICATION_FORM);
+      setEditingApplicationId(null);
+      setEditingApplicationSnapshot(null);
+    }
+  }, [workspace, editingApplicationId]);
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -505,6 +552,8 @@ export function AdmissionWorkspace() {
     setApplicantForm(INITIAL_APPLICANT_FORM);
     setEditingApplicantId(null);
     setApplicationForm(INITIAL_APPLICATION_FORM);
+    setEditingApplicationId(null);
+    setEditingApplicationSnapshot(null);
     setFlash({
       kind: 'success',
       message: 'Session cleared. Sign back in to continue the admission workflow.',
@@ -524,6 +573,19 @@ export function AdmissionWorkspace() {
   function handleApplicantFormReset() {
     setApplicantForm(INITIAL_APPLICANT_FORM);
     setEditingApplicantId(null);
+  }
+
+  function handleApplicationEdit(application: AdmissionApplication) {
+    setApplicationForm(applicationFormFromApplication(application));
+    setEditingApplicationId(application.id);
+    setEditingApplicationSnapshot(application);
+    applicationFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleApplicationFormReset() {
+    setApplicationForm(INITIAL_APPLICATION_FORM);
+    setEditingApplicationId(null);
+    setEditingApplicationSnapshot(null);
   }
 
   async function handleApplicantSubmit(event: FormEvent<HTMLFormElement>) {
@@ -577,7 +639,7 @@ export function AdmissionWorkspace() {
     }
   }
 
-  async function handleCreateApplication(event: FormEvent<HTMLFormElement>) {
+  async function handleApplicationSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session) {
       return;
@@ -588,30 +650,41 @@ export function AdmissionWorkspace() {
 
     try {
       if (!applicationForm.applicantId || !applicationForm.programmeId) {
-        throw new Error('Select both an applicant and a programme before creating the application.');
+        throw new Error('Select both an applicant and a programme before saving the application.');
       }
 
-      const created = await createAdmissionApplication(session, {
-        applicantId: applicationForm.applicantId,
-        programmeId: applicationForm.programmeId,
-        cycleId: queryValue(applicationForm.cycleId),
-        submissionNotes: queryValue(applicationForm.submissionNotes),
-      });
+      const editingApplication = isEditingApplication;
+      const applicationId = editingApplicationId;
+      if (editingApplication && !applicationId) {
+        throw new Error('Unable to determine the application being edited.');
+      }
 
-      setApplicationForm((current) => ({
-        ...current,
-        submissionNotes: '',
-      }));
+      const saved = editingApplication
+        ? await updateAdmissionApplication(session, applicationId as string, buildApplicationUpdateInput(applicationForm))
+        : await createAdmissionApplication(session, buildApplicationCreateInput(applicationForm));
+
+      if (editingApplication) {
+        handleApplicationFormReset();
+      } else {
+        setApplicationForm((current) => ({
+          ...current,
+          submissionNotes: '',
+        }));
+      }
       setFlash({
         kind: 'success',
-        message: `Application ${created.id.slice(0, 8)} was created for ${created.applicantName}.`,
+        message: editingApplication
+          ? `Application ${saved.id.slice(0, 8)} was updated for ${saved.applicantName}.`
+          : `Application ${saved.id.slice(0, 8)} was created for ${saved.applicantName}.`,
       });
       await refreshWorkspace(session, query);
     } catch (error) {
       const message =
         error instanceof EduCoreApiError || error instanceof Error
           ? error.message
-          : 'Unable to create the application.';
+          : isEditingApplication
+            ? 'Unable to update the application.'
+            : 'Unable to create the application.';
       setFlash({ kind: 'error', message });
     } finally {
       setBusy(false);
@@ -821,12 +894,15 @@ export function AdmissionWorkspace() {
                   ? 'rejected'
                   : action === 'offer'
                     ? 'offered'
-                    : action === 'accept'
-                      ? 'accepted'
-                      : 'enrolled',
+          : action === 'accept'
+            ? 'accepted'
+            : 'enrolled',
         )}.`,
       });
       await refreshWorkspace(session, query);
+      if (editingApplicationId === application.id) {
+        handleApplicationFormReset();
+      }
     } catch (error) {
       const message =
         error instanceof EduCoreApiError || error instanceof Error
@@ -839,6 +915,31 @@ export function AdmissionWorkspace() {
   }
 
   const selectedTenant = session ? tenants.find((tenant) => tenant.id === session.tenantId) ?? null : null;
+  const selectedApplicantVisible = Boolean(
+    workspace?.applicants.items.some(
+      (applicant) => applicant.id === applicationForm.applicantId,
+    ),
+  );
+  const selectedProgrammeVisible = Boolean(
+    workspace?.programmes.items.some(
+      (programme) => programme.id === applicationForm.programmeId,
+    ),
+  );
+  const selectedCycleVisible = Boolean(
+    workspace?.cycles.items.some((cycle) => cycle.id === applicationForm.cycleId),
+  );
+  const applicationApplicantFallback =
+    isEditingApplication && editingApplicationSnapshot && !selectedApplicantVisible && applicationForm.applicantId
+      ? editingApplicationSnapshot.applicantName
+      : null;
+  const applicationProgrammeFallback =
+    isEditingApplication && editingApplicationSnapshot && !selectedProgrammeVisible && applicationForm.programmeId
+      ? editingApplicationSnapshot.programmeName
+      : null;
+  const applicationCycleFallback =
+    isEditingApplication && editingApplicationSnapshot && !selectedCycleVisible && applicationForm.cycleId
+      ? editingApplicationSnapshot.cycleName
+      : null;
   const apiOnline = Boolean(health);
 
   return (
@@ -1338,14 +1439,29 @@ export function AdmissionWorkspace() {
                   </form>
                 </div>
 
-                <div className={styles.panel}>
+                <div className={styles.panel} ref={applicationFormRef}>
                   <div className={styles.panelHeader}>
                     <div>
                       <p className={styles.panelKicker}>Application flow</p>
-                      <h2 className={styles.panelTitle}>Create application</h2>
+                      <h2 className={styles.panelTitle}>{isEditingApplication ? 'Edit application' : 'Create application'}</h2>
                     </div>
+                    <span className={`${styles.pill} ${isEditingApplication ? styles.pillWarning : styles.pillSuccess}`}>
+                      {isEditingApplication ? 'Editing draft application' : 'New application'}
+                    </span>
                   </div>
-                  <form className={styles.formStack} onSubmit={handleCreateApplication}>
+                  {isEditingApplication ? (
+                    <div className={styles.banner}>
+                      <strong>Editing a draft application</strong>
+                      <p className={styles.helperText}>
+                        Only draft applications can be updated here. Once the application is submitted, the edit mode will close.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className={styles.helperText}>
+                      Draft applications can be created, adjusted, and then submitted into the review pipeline.
+                    </p>
+                  )}
+                  <form className={styles.formStack} onSubmit={handleApplicationSubmit}>
                     <div className={styles.fieldGrid}>
                       <Field label="Applicant">
                         <select
@@ -1359,7 +1475,13 @@ export function AdmissionWorkspace() {
                           }
                         >
                           <option value="">Select applicant</option>
-                          {workspace.applicants.items.map((applicant) => (
+                          {applicationApplicantFallback ? (
+                            <option value={applicationForm.applicantId}>{applicationApplicantFallback}</option>
+                          ) : null}
+                          {(applicationApplicantFallback
+                            ? workspace.applicants.items.filter((applicant) => applicant.id !== applicationForm.applicantId)
+                            : workspace.applicants.items
+                          ).map((applicant) => (
                             <option key={applicant.id} value={applicant.id}>
                               {applicant.fullName}
                             </option>
@@ -1378,7 +1500,13 @@ export function AdmissionWorkspace() {
                           }
                         >
                           <option value="">Select programme</option>
-                          {workspace.programmes.items.map((programme) => (
+                          {applicationProgrammeFallback ? (
+                            <option value={applicationForm.programmeId}>{applicationProgrammeFallback}</option>
+                          ) : null}
+                          {(applicationProgrammeFallback
+                            ? workspace.programmes.items.filter((programme) => programme.id !== applicationForm.programmeId)
+                            : workspace.programmes.items
+                          ).map((programme) => (
                             <option key={programme.id} value={programme.id}>
                               {programme.code} - {programme.name}
                             </option>
@@ -1398,7 +1526,13 @@ export function AdmissionWorkspace() {
                         }
                       >
                         <option value="">Use the current open cycle</option>
-                        {workspace.cycles.items.map((cycle) => (
+                        {applicationCycleFallback ? (
+                          <option value={applicationForm.cycleId}>{applicationCycleFallback}</option>
+                        ) : null}
+                        {(applicationCycleFallback
+                          ? workspace.cycles.items.filter((cycle) => cycle.id !== applicationForm.cycleId)
+                          : workspace.cycles.items
+                        ).map((cycle) => (
                           <option key={cycle.id} value={cycle.id}>
                             {cycle.name} ({cycle.academicYear})
                           </option>
@@ -1419,9 +1553,25 @@ export function AdmissionWorkspace() {
                         rows={6}
                       />
                     </Field>
-                    <button className={styles.button} type="submit" disabled={busy}>
-                      {busy ? 'Saving application...' : 'Create application'}
-                    </button>
+                    <div className={styles.buttonRow}>
+                      <button
+                        className={styles.buttonSecondary}
+                        type="button"
+                        onClick={handleApplicationFormReset}
+                        disabled={busy}
+                      >
+                        {isEditingApplication ? 'Cancel editing' : 'Clear form'}
+                      </button>
+                      <button className={styles.button} type="submit" disabled={busy}>
+                        {busy
+                          ? isEditingApplication
+                            ? 'Saving changes...'
+                            : 'Saving application...'
+                          : isEditingApplication
+                            ? 'Save changes'
+                            : 'Create application'}
+                      </button>
+                    </div>
                   </form>
                 </div>
               </section>
@@ -1610,6 +1760,11 @@ export function AdmissionWorkspace() {
                             </td>
                             <td className={styles.tableCellRight}>
                               <div className={styles.actionCluster}>
+                                {application.status === 'draft' ? (
+                                  <ActionButton busy={busy} onClick={() => handleApplicationEdit(application)}>
+                                    Edit
+                                  </ActionButton>
+                                ) : null}
                                 {application.status === 'draft' ? (
                                   <ActionButton busy={busy} onClick={() => handleApplicationAction('submit', application)}>
                                     Submit

@@ -16,6 +16,7 @@ import type { OfferAdmissionDto } from '../api/dto/offer-admission.dto';
 import type { RejectApplicationDto } from '../api/dto/reject-application.dto';
 import type { ScheduleInterviewDto } from '../api/dto/schedule-interview.dto';
 import type { UpdateApplicantDto } from '../api/dto/update-applicant.dto';
+import type { UpdateApplicationDto } from '../api/dto/update-application.dto';
 
 @Injectable()
 export class AdmissionService {
@@ -108,6 +109,17 @@ export class AdmissionService {
     this.recordAudit(tenantId, actorUserId, 'admission.application.created', 'admission-application', {
       applicationId: application.id,
       applicantId: application.applicantId,
+    });
+    return this.store.getApplicationView(tenantId, application.id);
+  }
+
+  updateApplication(tenantId: string, actorUserId: string | null, applicationId: string, dto: UpdateApplicationDto) {
+    const application = this.store.updateApplication(tenantId, applicationId, dto);
+    this.recordAudit(tenantId, actorUserId, 'admission.application.updated', 'admission-application', {
+      applicationId: application.id,
+      applicantId: application.applicantId,
+      cycleId: application.cycleId,
+      programmeId: application.programmeId,
     });
     return this.store.getApplicationView(tenantId, application.id);
   }

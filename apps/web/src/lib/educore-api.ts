@@ -17,6 +17,16 @@ export type AdmissionApplicantStatus =
   | 'enrolled'
   | 'withdrawn';
 
+export type AdmissionApplicationStatus =
+  | 'draft'
+  | 'submitted'
+  | 'interview_scheduled'
+  | 'approved'
+  | 'rejected'
+  | 'offered'
+  | 'accepted'
+  | 'enrolled';
+
 export interface ApiTenant {
   id: string;
   slug: string;
@@ -134,7 +144,7 @@ export interface AdmissionApplication {
   applicantId: string;
   cycleId: string;
   programmeId: string;
-  status: string;
+  status: AdmissionApplicationStatus;
   applicantName: string;
   cycleName: string;
   programmeName: string;
@@ -220,6 +230,13 @@ export interface UpdateApplicantInput extends Partial<CreateApplicantInput> {
 export interface CreateApplicationInput {
   applicantId: string;
   programmeId: string;
+  cycleId?: string | null;
+  submissionNotes?: string | null;
+}
+
+export interface UpdateApplicationInput {
+  applicantId?: string;
+  programmeId?: string;
   cycleId?: string | null;
   submissionNotes?: string | null;
 }
@@ -361,6 +378,20 @@ export async function deleteAdmissionApplicant(session: AdmissionSession, applic
 export async function createAdmissionApplication(session: AdmissionSession, input: CreateApplicationInput) {
   return requestJson<AdmissionApplication>('/admission/applications', {
     method: 'POST',
+    tenantId: session.tenantId,
+    token: session.accessToken,
+    productCode: ADMISSION_PRODUCT_CODE,
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateAdmissionApplication(
+  session: AdmissionSession,
+  applicationId: string,
+  input: UpdateApplicationInput,
+) {
+  return requestJson<AdmissionApplication>(`/admission/applications/${applicationId}`, {
+    method: 'PATCH',
     tenantId: session.tenantId,
     token: session.accessToken,
     productCode: ADMISSION_PRODUCT_CODE,

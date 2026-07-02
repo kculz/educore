@@ -24,6 +24,7 @@ import type { OfferAdmissionDto } from './dto/offer-admission.dto';
 import type { RejectApplicationDto } from './dto/reject-application.dto';
 import type { ScheduleInterviewDto } from './dto/schedule-interview.dto';
 import type { UpdateApplicantDto } from './dto/update-applicant.dto';
+import type { UpdateApplicationDto } from './dto/update-application.dto';
 
 type RequestWithContext = Request & {
   platformContext?: {
@@ -113,6 +114,18 @@ export class AdmissionController {
   @ApiOkResponse({ type: AdmissionApplicationDto })
   createApplication(@Req() request: RequestWithContext, @Body() dto: CreateApplicationDto) {
     return this.admissionService.createApplication(this.tenantId(request), this.actorUserId(request), dto);
+  }
+
+  @Patch('applications/:id')
+  @AccessScope({ productCode: 'admission', permission: 'admission.write' })
+  @ApiOperation({ summary: 'Update a draft application' })
+  @ApiOkResponse({ type: AdmissionApplicationDto })
+  updateApplication(
+    @Req() request: RequestWithContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicationDto,
+  ) {
+    return this.admissionService.updateApplication(this.tenantId(request), this.actorUserId(request), id, dto);
   }
 
   @Post('applications/:id/submit')
