@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsObject, IsString } from 'class-validator';
+import { IsEmail, IsObject } from 'class-validator';
 
 import type { EmailTemplateKey } from '../email-template.service';
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class SendEmailDto {
   @ApiProperty()
@@ -9,7 +10,7 @@ export class SendEmailDto {
   to!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   template!: EmailTemplateKey;
 
   @ApiProperty({ type: Object })

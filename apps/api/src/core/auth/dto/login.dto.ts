@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@educore.local' })
@@ -7,8 +9,7 @@ export class LoginDto {
   email!: string;
 
   @ApiProperty({ example: 'Password123!' })
-  @IsString()
+  @IsTrimmedString()
   @MinLength(8)
   password!: string;
 }
-

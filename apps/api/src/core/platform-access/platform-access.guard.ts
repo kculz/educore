@@ -1,37 +1,31 @@
 import {
-  CanActivate,
-  ExecutionContext,
+  Inject,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { ANONYMOUS_ROUTE_KEY, ACCESS_SCOPE_KEY, PUBLIC_ROUTE_KEY } from './platform-access.decorator';
+import {
+  ANONYMOUS_ROUTE_KEY,
+  ACCESS_SCOPE_KEY,
+  PUBLIC_ROUTE_KEY,
+  type PlatformAccessScope,
+} from './platform-access.decorator';
 import { PlatformStateService } from '../platform-state/platform-state.service';
-import type { JwtUserPayload } from '../platform-state/platform-state.types';
-
-type RequestWithUser = {
-  headers: Record<string, string | string[] | undefined>;
-  user?: JwtUserPayload;
-  platformContext?: {
-    tenantId: string;
-    productCode: string;
-    permission?: string;
-    featureFlag?: string;
-    publicRoute: boolean;
-  };
-};
+import { resolveProductCode, resolveTenantId } from '../../shared/helpers/request.helpers';
+import type { PlatformHttpRequest } from '../../shared/interfaces/request-context.interface';
 
 @Injectable()
 export class PlatformAccessGuard implements CanActivate {
   constructor(
-    private readonly reflector: Reflector,
-    private readonly platformState: PlatformStateService,
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(PlatformStateService) private readonly platformState: PlatformStateService,
   ) {}
 
   canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const request = context.switchToHttp().getRequest<PlatformHttpRequest>();
     const anonymous = this.reflector.getAllAndOverride<boolean>(ANONYMOUS_ROUTE_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -45,12 +39,12 @@ export class PlatformAccessGuard implements CanActivate {
       context.getClass(),
     ]);
     const scope = this.resolveScope(context);
-    const tenantId = this.readHeader(request, 'x-tenant-id');
+    const tenantId = resolveTenantId(request);
     if (!tenantId) {
       throw new UnauthorizedException('Missing tenant context');
     }
 
-    const productCode = scope.productCode ?? this.readHeader(request, 'x-product-code') ?? 'platform';
+    const productCode = scope.productCode ?? resolveProductCode(request);
     const tenant = this.platformState.getTenantById(tenantId);
     if (!tenant) {
       throw new UnauthorizedException('Unknown tenant');
@@ -97,29 +91,12 @@ export class PlatformAccessGuard implements CanActivate {
   }
 
   private resolveScope(context: ExecutionContext) {
-    const classScope = this.reflector.get<{
-      productCode?: string;
-      permission?: string;
-      featureFlag?: string;
-    }>(ACCESS_SCOPE_KEY, context.getClass());
-    const handlerScope = this.reflector.get<{
-      productCode?: string;
-      permission?: string;
-      featureFlag?: string;
-    }>(ACCESS_SCOPE_KEY, context.getHandler());
+    const classScope = this.reflector.get<PlatformAccessScope>(ACCESS_SCOPE_KEY, context.getClass());
+    const handlerScope = this.reflector.get<PlatformAccessScope>(ACCESS_SCOPE_KEY, context.getHandler());
 
     return {
       ...classScope,
       ...handlerScope,
     };
   }
-
-  private readHeader(request: RequestWithUser, key: string) {
-    const header = request.headers[key];
-    if (Array.isArray(header)) {
-      return header[0] ?? '';
-    }
-    return header ?? '';
-  }
 }
-

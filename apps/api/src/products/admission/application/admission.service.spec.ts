@@ -5,10 +5,12 @@ import { PaginationService } from '../../../shared/query/pagination.service';
 import { SearchService } from '../../../shared/query/search.service';
 import { SortingService } from '../../../shared/query/sorting.service';
 import { PlatformStateService } from '../../../core/platform-state/platform-state.service';
+import { AuditRecorderService } from '../../../core/audit/audit-recorder.service';
 
 describe('AdmissionService', () => {
   const createService = () => {
     const platformState = new PlatformStateService();
+    const auditRecorder = new AuditRecorderService(platformState);
     const store = new AdmissionStoreService(platformState);
     const service = new AdmissionService(
       store,
@@ -16,7 +18,7 @@ describe('AdmissionService', () => {
       new FilteringService(),
       new SortingService(),
       new PaginationService(),
-      platformState,
+      auditRecorder,
     );
 
     return { platformState, service };

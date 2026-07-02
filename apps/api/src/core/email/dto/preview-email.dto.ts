@@ -1,11 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsObject, IsString } from 'class-validator';
+import { IsObject } from 'class-validator';
 
 import type { EmailTemplateKey } from '../email-template.service';
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class PreviewEmailDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   template!: EmailTemplateKey;
 
   @ApiProperty({ type: Object })

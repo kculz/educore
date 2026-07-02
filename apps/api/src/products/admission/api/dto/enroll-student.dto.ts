@@ -1,11 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class EnrollStudentDto {
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(3)
   studentNumber?: string | null;
 }
-

@@ -9,6 +9,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { PlatformConfigService } from './config/platform-config.service';
 import { PlatformLoggerService } from './core/logging/platform-logger.service';
+import { RequestTimingInterceptor } from './shared/interceptors/request-timing.interceptor';
+import { requestIdMiddleware } from './shared/middlewares/request-id.middleware';
 import { PlatformValidationService } from './shared/validation/platform-validation.service';
 import { PlatformExceptionFilter } from './shared/errors/platform-exception.filter';
 
@@ -27,6 +29,7 @@ async function bootstrap() {
     origin: true,
     credentials: true,
   });
+  app.use(requestIdMiddleware);
 
   app.setGlobalPrefix('api');
   app.enableVersioning({
@@ -36,6 +39,7 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
   app.useGlobalPipes(validation.createPipe());
+  app.useGlobalInterceptors(app.get(RequestTimingInterceptor));
   app.useGlobalFilters(exceptionFilter);
 
   const swaggerConfig = new DocumentBuilder()

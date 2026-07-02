@@ -1,24 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class CreateApplicationDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   applicantId!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   programmeId!: string;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   cycleId?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(3)
   submissionNotes?: string | null;
 }
-

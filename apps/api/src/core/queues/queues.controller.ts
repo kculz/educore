@@ -1,23 +1,17 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 
 import { AccessScope } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId } from '../platform-access/platform-request.decorator';
 import { CreateQueueJobDto } from './dto/create-queue-job.dto';
 import { QueuesService } from './queues.service';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-  };
-};
 
 @ApiTags('Queues')
 @ApiBearerAuth()
 @Controller({ path: 'queues', version: '1' })
 @AccessScope({ productCode: 'platform', permission: 'queues.read' })
 export class QueuesController {
-  constructor(private readonly queuesService: QueuesService) {}
+  constructor(@Inject(QueuesService) private readonly queuesService: QueuesService) {}
 
   @Get()
   list() {
@@ -32,11 +26,12 @@ export class QueuesController {
 
   @Post(':queue/jobs')
   @AccessScope({ productCode: 'platform', permission: 'queues.write' })
+  @ApiBody({ type: CreateQueueJobDto })
   enqueue(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
     @Param('queue') queue: string,
     @Body() dto: CreateQueueJobDto,
   ) {
-    return this.queuesService.add(queue, dto.name, dto.payload, request.platformContext?.tenantId ?? null);
+    return this.queuesService.add(queue, dto.name, dto.payload, tenantId ?? null);
   }
 }

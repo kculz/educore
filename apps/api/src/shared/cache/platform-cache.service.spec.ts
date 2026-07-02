@@ -5,6 +5,12 @@ describe('PlatformCacheService', () => {
     jest.useRealTimers();
   });
 
+  it('builds namespaced cache keys', () => {
+    const service = new PlatformCacheService();
+
+    expect(service.key('tenant', 'users')).toBe('educore:tenant:users');
+  });
+
   it('stores and expires values', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
 
@@ -18,4 +24,3 @@ describe('PlatformCacheService', () => {
     expect(service.get('token')).toBeNull();
   });
 });
-

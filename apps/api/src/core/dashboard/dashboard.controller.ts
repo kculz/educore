@@ -1,26 +1,19 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
 
 import { AccessScope } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId } from '../platform-access/platform-request.decorator';
 import { DashboardService } from './dashboard.service';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-  };
-};
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
 @Controller({ path: 'dashboard', version: '1' })
 @AccessScope({ productCode: 'platform', permission: 'dashboard.read' })
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(@Inject(DashboardService) private readonly dashboardService: DashboardService) {}
 
   @Get()
-  overview(@Req() request: RequestWithContext) {
-    return this.dashboardService.overview(request.platformContext?.tenantId ?? '');
+  overview(@CurrentTenantId() tenantId: string | null) {
+    return this.dashboardService.overview(tenantId ?? '');
   }
 }
-

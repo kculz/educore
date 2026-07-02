@@ -4,7 +4,7 @@ import { FilteringService } from '../../../shared/query/filtering.service';
 import { PaginationService } from '../../../shared/query/pagination.service';
 import { SearchService } from '../../../shared/query/search.service';
 import { SortingService } from '../../../shared/query/sorting.service';
-import { PlatformStateService } from '../../../core/platform-state/platform-state.service';
+import { AuditRecorderService } from '../../../core/audit/audit-recorder.service';
 import type { PaginatedResult } from '../../../shared/query/query.types';
 import { AdmissionStoreService } from '../infrastructure/admission-store.service';
 import type { AdmissionDashboardSummary } from '../domain/admission.types';
@@ -30,7 +30,7 @@ export class AdmissionService {
     @Inject(FilteringService) private readonly filtering: FilteringService,
     @Inject(SortingService) private readonly sorting: SortingService,
     @Inject(PaginationService) private readonly pagination: PaginationService,
-    @Inject(PlatformStateService) private readonly platformState: PlatformStateService,
+    @Inject(AuditRecorderService) private readonly audit: AuditRecorderService,
   ) {}
 
   dashboard(tenantId: string): AdmissionDashboardSummary {
@@ -289,12 +289,6 @@ export class AdmissionService {
     resource: string,
     metadata: Record<string, unknown>,
   ) {
-    this.platformState.recordAudit({
-      tenantId,
-      userId,
-      action,
-      resource,
-      metadata,
-    });
+    this.audit.record({ tenantId, userId, action, resource, metadata });
   }
 }

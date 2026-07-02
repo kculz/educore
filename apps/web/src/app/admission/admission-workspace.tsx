@@ -49,6 +49,20 @@ import {
   type UpdateApplicationInput,
   type UpdateApplicantInput,
 } from '@web/lib/educore-api';
+import {
+  badgeTone,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  statusLabel,
+} from '@web/lib/formatters';
+import {
+  hasAnyText,
+  optionalText,
+  parsePositiveInteger,
+  requiredText,
+} from '@web/lib/form-values';
+import { buildTenantPath } from '@web/lib/tenant-domains';
 import styles from './admission-workspace.module.css';
 
 const SESSION_KEY = 'educore.admission.session';
@@ -176,47 +190,10 @@ type ApplicationAction =
   | 'accept'
   | 'enroll';
 
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return 'Not set';
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return 'Not set';
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
-}
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat('en-US').format(value);
-}
-
-function badgeTone(status: string) {
-  const normalized = status.toLowerCase();
-  if (['active', 'approved', 'submitted', 'accepted', 'enrolled', 'open'].includes(normalized)) {
-    return 'success';
-  }
-  if (['draft', 'pending'].includes(normalized)) {
-    return 'muted';
-  }
-  if (['rejected', 'withdrawn', 'archived', 'closed', 'disabled', 'suspended'].includes(normalized)) {
-    return 'danger';
-  }
-  if (['interview_scheduled', 'offered'].includes(normalized)) {
-    return 'warning';
-  }
-  return 'neutral';
-}
+type AdmissionWorkspaceProps = {
+  preferredTenantSlug?: string;
+  tenantName?: string;
+};
 
 function statusToneClass(status: string) {
   switch (badgeTone(status)) {
@@ -233,56 +210,39 @@ function statusToneClass(status: string) {
   }
 }
 
-function statusLabel(value: string) {
-  return value
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function queryValue(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
 function buildApplicantBaseInput(form: ApplicantFormState) {
-  const gender = queryValue(form.gender);
+  const gender = optionalText(form.gender);
 
   return {
     firstName: form.firstName.trim(),
     lastName: form.lastName.trim(),
-    otherNames: queryValue(form.otherNames) ?? null,
-    email: queryValue(form.email) ?? null,
-    phoneNumber: queryValue(form.phoneNumber) ?? null,
-    dateOfBirth: queryValue(form.dateOfBirth) ?? null,
+    otherNames: optionalText(form.otherNames) ?? null,
+    email: optionalText(form.email) ?? null,
+    phoneNumber: optionalText(form.phoneNumber) ?? null,
+    dateOfBirth: optionalText(form.dateOfBirth) ?? null,
     gender: gender ? (gender as AdmissionGender) : null,
   };
 }
 
 function buildGuardianInput(form: ApplicantFormState, mode: ApplicantFormMode) {
-  const guardianHasData =
-    form.guardianFullName.trim().length > 0 ||
-    form.guardianRelationship.trim().length > 0 ||
-    form.guardianEmail.trim().length > 0 ||
-    form.guardianPhoneNumber.trim().length > 0;
+  const guardianHasData = hasAnyText([
+    form.guardianFullName,
+    form.guardianRelationship,
+    form.guardianEmail,
+    form.guardianPhoneNumber,
+  ]);
 
   if (!guardianHasData) {
     return mode === 'edit' ? null : undefined;
   }
 
-  if (
-    form.guardianFullName.trim().length === 0 ||
-    form.guardianRelationship.trim().length === 0
-  ) {
-    throw new Error('Guardian full name and relationship are required when adding guardian details.');
-  }
+  const message = 'Guardian full name and relationship are required when adding guardian details.';
 
   return {
-    fullName: form.guardianFullName.trim(),
-    relationship: form.guardianRelationship.trim(),
-    email: queryValue(form.guardianEmail) ?? null,
-    phoneNumber: queryValue(form.guardianPhoneNumber) ?? null,
+    fullName: requiredText(form.guardianFullName, message),
+    relationship: requiredText(form.guardianRelationship, message),
+    email: optionalText(form.guardianEmail) ?? null,
+    phoneNumber: optionalText(form.guardianPhoneNumber) ?? null,
   };
 }
 
@@ -322,8 +282,8 @@ function buildApplicationCreateInput(form: ApplicationFormState) {
   return {
     applicantId: form.applicantId.trim(),
     programmeId: form.programmeId.trim(),
-    cycleId: queryValue(form.cycleId) ?? null,
-    submissionNotes: queryValue(form.submissionNotes) ?? null,
+    cycleId: optionalText(form.cycleId) ?? null,
+    submissionNotes: optionalText(form.submissionNotes) ?? null,
   };
 }
 
@@ -331,8 +291,8 @@ function buildApplicationUpdateInput(form: ApplicationFormState): UpdateApplicat
   return {
     applicantId: form.applicantId.trim(),
     programmeId: form.programmeId.trim(),
-    cycleId: queryValue(form.cycleId),
-    submissionNotes: queryValue(form.submissionNotes) ?? null,
+    cycleId: optionalText(form.cycleId),
+    submissionNotes: optionalText(form.submissionNotes) ?? null,
   };
 }
 
@@ -347,19 +307,16 @@ function cycleFormFromCycle(cycle: AdmissionCycle): CycleFormState {
 }
 
 function buildCycleInput(form: CycleFormState): CreateCycleInput {
-  const academicYear = queryValue(form.academicYear);
-  const name = queryValue(form.name);
-  const startDate = queryValue(form.startDate);
-
-  if (!academicYear || !name || !startDate) {
-    throw new Error('Academic year, cycle name, and start date are required.');
-  }
+  const message = 'Academic year, cycle name, and start date are required.';
+  const academicYear = requiredText(form.academicYear, message);
+  const name = requiredText(form.name, message);
+  const startDate = requiredText(form.startDate, message);
 
   return {
     academicYear,
     name,
     startDate,
-    endDate: queryValue(form.endDate) ?? null,
+    endDate: optionalText(form.endDate) ?? null,
     status: form.status,
   };
 }
@@ -375,18 +332,11 @@ function programmeFormFromProgramme(programme: AdmissionProgramme): ProgrammeFor
 }
 
 function buildProgrammeInput(form: ProgrammeFormState): CreateProgrammeInput {
-  const code = queryValue(form.code);
-  const name = queryValue(form.name);
-  const level = queryValue(form.level);
-  const capacity = Number.parseInt(form.capacity, 10);
-
-  if (!code || !name || !level) {
-    throw new Error('Programme code, name, and level are required.');
-  }
-
-  if (!Number.isInteger(capacity) || capacity < 1) {
-    throw new Error('Programme capacity must be at least 1.');
-  }
+  const message = 'Programme code, name, and level are required.';
+  const code = requiredText(form.code, message);
+  const name = requiredText(form.name, message);
+  const level = requiredText(form.level, message);
+  const capacity = parsePositiveInteger(form.capacity, 'Programme capacity must be at least 1.');
 
   return {
     code,
@@ -431,7 +381,7 @@ function clearStoredSession() {
   window.localStorage.removeItem(SESSION_KEY);
 }
 
-export function AdmissionWorkspace() {
+export function AdmissionWorkspace({ preferredTenantSlug, tenantName }: AdmissionWorkspaceProps = {}) {
   const [booting, setBooting] = useState(true);
   const [tenants, setTenants] = useState<ApiTenant[]>([]);
   const [health, setHealth] = useState<ApiHealthResponse | null>(null);
@@ -456,6 +406,8 @@ export function AdmissionWorkspace() {
   const cycleFormRef = useRef<HTMLDivElement | null>(null);
   const applicationFormRef = useRef<HTMLDivElement | null>(null);
   const programmeFormRef = useRef<HTMLDivElement | null>(null);
+  const tenantMode = Boolean(preferredTenantSlug);
+  const normalizedPreferredTenantSlug = preferredTenantSlug?.trim().toLowerCase() ?? null;
   const isEditingApplicant = editingApplicantId !== null;
   const isEditingCycle = editingCycleId !== null;
   const isEditingApplication = editingApplicationId !== null;
@@ -471,15 +423,15 @@ export function AdmissionWorkspace() {
         listAdmissionCycles(targetSession, { page: 1, limit: 4, sortBy: 'updatedAt', sortOrder: 'desc' }),
         listAdmissionProgrammes(targetSession, { page: 1, limit: 6, sortBy: 'createdAt', sortOrder: 'desc' }),
         listAdmissionApplicants(targetSession, {
-          q: queryValue(targetQuery.applicantSearch),
+          q: optionalText(targetQuery.applicantSearch),
           page: targetQuery.applicantPage,
           limit: LIST_LIMIT,
           sortBy: 'updatedAt',
           sortOrder: 'desc',
         }),
         listAdmissionApplications(targetSession, {
-          q: queryValue(targetQuery.applicationSearch),
-          status: queryValue(targetQuery.applicationStatus),
+          q: optionalText(targetQuery.applicationSearch),
+          status: optionalText(targetQuery.applicationStatus),
           page: targetQuery.applicationPage,
           limit: LIST_LIMIT,
           sortBy: 'updatedAt',
@@ -496,7 +448,7 @@ export function AdmissionWorkspace() {
         loadedAt: new Date().toISOString(),
       });
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : 'Unable to load the admission workspace.');
+      setWorkspaceError(error instanceof Error ? error.message : 'Unable to load the admission portal.');
     } finally {
       setWorkspaceLoading(false);
     }
@@ -515,10 +467,22 @@ export function AdmissionWorkspace() {
 
         if (tenantsResult.status === 'fulfilled') {
           setTenants(tenantsResult.value);
-          if (tenantsResult.value.length > 0) {
+          const tenantMatch = normalizedPreferredTenantSlug
+            ? tenantsResult.value.find((tenant) => tenant.slug.toLowerCase() === normalizedPreferredTenantSlug) ?? null
+            : null;
+          const defaultTenant = tenantMatch ?? tenantsResult.value[0] ?? null;
+
+          if (defaultTenant) {
             setLoginForm((current) =>
-              current.tenantId ? current : { ...current, tenantId: tenantsResult.value[0].id },
+              current.tenantId ? current : { ...current, tenantId: defaultTenant.id },
             );
+          }
+
+          if (normalizedPreferredTenantSlug && !tenantMatch) {
+            setFlash({
+              kind: 'error',
+              message: `No active tenant matches the ${preferredTenantSlug} domain.`,
+            });
           }
         } else {
           setFlash({
@@ -544,13 +508,33 @@ export function AdmissionWorkspace() {
 
         const storedSession = readStoredSession();
         if (storedSession) {
-          setSession(storedSession);
-          setLoginForm({
-            tenantId: storedSession.tenantId,
-            email: storedSession.user.email,
-            password: '',
-          });
-          await refreshWorkspace(storedSession, INITIAL_QUERY);
+          const storedTenant = tenantsResult.status === 'fulfilled'
+            ? tenantsResult.value.find(
+                (tenant) =>
+                  tenant.id === storedSession.tenantId ||
+                  tenant.slug.toLowerCase() === storedSession.tenantSlug.toLowerCase(),
+              ) ?? null
+            : null;
+          const matchesPreferredTenant = !normalizedPreferredTenantSlug
+            ? true
+            : storedSession.tenantSlug.toLowerCase() === normalizedPreferredTenantSlug ||
+              storedTenant?.slug.toLowerCase() === normalizedPreferredTenantSlug;
+
+          if (matchesPreferredTenant) {
+            setSession(storedSession);
+            setLoginForm({
+              tenantId: storedSession.tenantId,
+              email: storedSession.user.email,
+              password: '',
+            });
+            await refreshWorkspace(storedSession, INITIAL_QUERY);
+          } else {
+            clearStoredSession();
+            setFlash({
+              kind: 'error',
+              message: `This domain is reserved for ${preferredTenantSlug}. Sign in with that tenant account.`,
+            });
+          }
         }
       } finally {
         if (active) {
@@ -624,7 +608,7 @@ export function AdmissionWorkspace() {
       const message =
         error instanceof EduCoreApiError || error instanceof Error
           ? error.message
-          : 'Unable to sign in to the admission workspace.';
+          : 'Unable to sign in to the admission portal.';
       setFlash({ kind: 'error', message });
     } finally {
       setBusy(false);
@@ -681,6 +665,18 @@ export function AdmissionWorkspace() {
     cycleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function handleCycleUseInApplication(cycle: AdmissionCycle) {
+    setApplicationForm((current) => ({
+      ...current,
+      cycleId: cycle.id,
+    }));
+    setFlash({
+      kind: 'success',
+      message: `${cycle.name} is selected in the application form.`,
+    });
+    applicationFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   function handleCycleFormReset() {
     setCycleForm(INITIAL_CYCLE_FORM);
     setEditingCycleId(null);
@@ -703,6 +699,18 @@ export function AdmissionWorkspace() {
     setProgrammeForm(programmeFormFromProgramme(programme));
     setEditingProgrammeId(programme.id);
     programmeFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleProgrammeUseInApplication(programme: AdmissionProgramme) {
+    setApplicationForm((current) => ({
+      ...current,
+      programmeId: programme.id,
+    }));
+    setFlash({
+      kind: 'success',
+      message: `${programme.code} is selected in the application form.`,
+    });
+    applicationFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function handleProgrammeFormReset() {
@@ -1106,7 +1114,11 @@ export function AdmissionWorkspace() {
     }
   }
 
-  const selectedTenant = session ? tenants.find((tenant) => tenant.id === session.tenantId) ?? null : null;
+  const preferredTenant = normalizedPreferredTenantSlug
+    ? tenants.find((tenant) => tenant.slug.toLowerCase() === normalizedPreferredTenantSlug) ?? null
+    : null;
+  const sessionTenant = session ? tenants.find((tenant) => tenant.id === session.tenantId) ?? null : null;
+  const selectedTenant = preferredTenant ?? sessionTenant;
   const selectedApplicantVisible = Boolean(
     workspace?.applicants.items.some(
       (applicant) => applicant.id === applicationForm.applicantId,
@@ -1133,6 +1145,11 @@ export function AdmissionWorkspace() {
       ? editingApplicationSnapshot.cycleName
       : null;
   const apiOnline = Boolean(health);
+  const tenantHomeHref = normalizedPreferredTenantSlug
+    ? buildTenantPath(normalizedPreferredTenantSlug)
+    : session?.tenantSlug
+      ? buildTenantPath(session.tenantSlug)
+      : '/';
 
   return (
     <main className={styles.page}>
@@ -1143,7 +1160,7 @@ export function AdmissionWorkspace() {
             <div className={styles.brandMark}>EC</div>
             <div>
               <div className={styles.brandName}>EduCore Admission</div>
-              <div className={styles.brandMeta}>Front office control room</div>
+              <div className={styles.brandMeta}>{tenantMode ? 'Tenant portal' : 'Admissions portal'}</div>
             </div>
           </div>
 
@@ -1151,7 +1168,15 @@ export function AdmissionWorkspace() {
             <div className={styles.panelHeader}>
               <div>
                 <p className={styles.panelKicker}>Access</p>
-                <h2 className={styles.panelTitle}>{session ? 'Workspace session' : 'Connect to a tenant'}</h2>
+                <h2 className={styles.panelTitle}>
+                  {session
+                    ? tenantMode
+                      ? `${tenantName ?? session.tenantName} session`
+                      : 'Portal session'
+                    : tenantMode
+                      ? 'Tenant sign in'
+                      : 'Connect to a tenant'}
+                </h2>
               </div>
               <span className={`${styles.pill} ${apiOnline ? styles.pillSuccess : styles.pillMuted}`}>
                 {apiOnline ? 'API online' : 'API offline'}
@@ -1179,6 +1204,54 @@ export function AdmissionWorkspace() {
                   </button>
                 </div>
               </div>
+            ) : tenantMode ? (
+              <form className={styles.formStack} onSubmit={handleLogin}>
+                <div className={styles.sessionCard}>
+                  <div className={styles.sessionLabel}>Tenant domain</div>
+                  <div className={styles.sessionValue}>{tenantName ?? selectedTenant?.name ?? preferredTenantSlug}</div>
+                  <div className={styles.sessionMeta}>{preferredTenantSlug}</div>
+                </div>
+                <div className={styles.fieldGrid}>
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="email">
+                      Email
+                    </label>
+                    <input
+                      id="email"
+                      className={styles.input}
+                      value={loginForm.email}
+                      onChange={(event) =>
+                        setLoginForm((current) => ({
+                          ...current,
+                          email: event.target.value,
+                        }))
+                      }
+                      placeholder="admin@educore.local"
+                    />
+                  </div>
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="password">
+                      Password
+                    </label>
+                    <input
+                      id="password"
+                      type="password"
+                      className={styles.input}
+                      value={loginForm.password}
+                      onChange={(event) =>
+                        setLoginForm((current) => ({
+                          ...current,
+                          password: event.target.value,
+                        }))
+                      }
+                      placeholder="Password123!"
+                    />
+                  </div>
+                </div>
+                <button className={styles.button} type="submit" disabled={busy || loginForm.tenantId.trim().length === 0}>
+                  {busy ? 'Signing in...' : 'Open portal'}
+                </button>
+              </form>
             ) : (
               <form className={styles.formStack} onSubmit={handleLogin}>
                 <div className={styles.field}>
@@ -1257,79 +1330,121 @@ export function AdmissionWorkspace() {
                   </div>
                 </div>
                 <button className={styles.button} type="submit" disabled={busy || loginForm.tenantId.trim().length === 0}>
-                  {busy ? 'Signing in...' : 'Open workspace'}
+                  {busy ? 'Signing in...' : 'Open portal'}
                 </button>
               </form>
             )}
           </section>
 
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.panelKicker}>Platform</p>
-                <h2 className={styles.panelTitle}>System snapshot</h2>
-              </div>
-              <span className={styles.pill}>v0.1.0</span>
-            </div>
+          {tenantMode ? (
+            <>
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <p className={styles.panelKicker}>Tenant</p>
+                    <h2 className={styles.panelTitle}>{tenantName ?? selectedTenant?.name ?? 'Tenant domain'}</h2>
+                  </div>
+                  <span className={styles.pill}>{selectedTenant?.slug ?? preferredTenantSlug ?? 'Tenant'}</span>
+                </div>
 
-            {health ? (
-              <div className={styles.quickStats}>
-                <div className={styles.quickStat}>
-                  <span className={styles.quickStatLabel}>Environment</span>
-                  <strong className={styles.quickStatValue}>{health.env}</strong>
+                <div className={styles.stack}>
+                  <div className={styles.sessionCard}>
+                    <div className={styles.sessionLabel}>Domain</div>
+                    <div className={styles.sessionValue}>{selectedTenant?.slug ?? preferredTenantSlug}</div>
+                    <div className={styles.sessionMeta}>Branded tenant access</div>
+                  </div>
+                  <div className={styles.sessionCard}>
+                    <div className={styles.sessionLabel}>Enabled products</div>
+                    <div className={styles.sessionValue}>
+                      {selectedTenant?.enabledProducts.filter((product) => product !== 'platform').join(' · ') ||
+                        'Admission'}
+                    </div>
+                    <div className={styles.sessionMeta}>Launch products from this domain</div>
+                  </div>
                 </div>
-                <div className={styles.quickStat}>
-                  <span className={styles.quickStatLabel}>Tenants</span>
-                  <strong className={styles.quickStatValue}>{formatNumber(health.snapshot.tenants)}</strong>
-                </div>
-                <div className={styles.quickStat}>
-                  <span className={styles.quickStatLabel}>Users</span>
-                  <strong className={styles.quickStatValue}>{formatNumber(health.snapshot.users)}</strong>
-                </div>
-                <div className={styles.quickStat}>
-                  <span className={styles.quickStatLabel}>Audits</span>
-                  <strong className={styles.quickStatValue}>{formatNumber(health.snapshot.audits)}</strong>
-                </div>
-              </div>
-            ) : (
-              <p className={styles.helperText}>The public health endpoint is still loading.</p>
-            )}
-          </section>
+              </section>
 
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.panelKicker}>Seed tenants</p>
-                <h2 className={styles.panelTitle}>Known access points</h2>
-              </div>
-            </div>
-            <div className={styles.chipRow}>
-              {tenants.length > 0 ? (
-                tenants.map((tenant) => (
-                  <span key={tenant.id} className={styles.chip}>
-                    {tenant.name}
-                  </span>
-                ))
-              ) : (
-                <span className={styles.helperText}>Waiting for tenant discovery.</span>
-              )}
-            </div>
-          </section>
+              <Link className={styles.linkCard} href={tenantHomeHref}>
+                Return to tenant home
+              </Link>
+            </>
+          ) : (
+            <>
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <p className={styles.panelKicker}>Platform</p>
+                    <h2 className={styles.panelTitle}>System snapshot</h2>
+                  </div>
+                  <span className={styles.pill}>v0.1.0</span>
+                </div>
 
-          <Link className={styles.linkCard} href="/">
-            Return to platform overview
-          </Link>
+                {health ? (
+                  <div className={styles.quickStats}>
+                    <div className={styles.quickStat}>
+                      <span className={styles.quickStatLabel}>Environment</span>
+                      <strong className={styles.quickStatValue}>{health.env}</strong>
+                    </div>
+                    <div className={styles.quickStat}>
+                      <span className={styles.quickStatLabel}>Tenants</span>
+                      <strong className={styles.quickStatValue}>{formatNumber(health.snapshot.tenants)}</strong>
+                    </div>
+                    <div className={styles.quickStat}>
+                      <span className={styles.quickStatLabel}>Users</span>
+                      <strong className={styles.quickStatValue}>{formatNumber(health.snapshot.users)}</strong>
+                    </div>
+                    <div className={styles.quickStat}>
+                      <span className={styles.quickStatLabel}>Audits</span>
+                      <strong className={styles.quickStatValue}>{formatNumber(health.snapshot.audits)}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <p className={styles.helperText}>The public health endpoint is still loading.</p>
+                )}
+              </section>
+
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <p className={styles.panelKicker}>Seed tenants</p>
+                    <h2 className={styles.panelTitle}>Known access points</h2>
+                  </div>
+                </div>
+                <div className={styles.chipRow}>
+                  {tenants.length > 0 ? (
+                    tenants.map((tenant) => (
+                      <span key={tenant.id} className={styles.chip}>
+                        {tenant.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className={styles.helperText}>Waiting for tenant discovery.</span>
+                  )}
+                </div>
+              </section>
+
+              <Link className={styles.linkCard} href="/">
+                Return to platform overview
+              </Link>
+            </>
+          )}
         </aside>
 
         <section className={styles.main}>
           <header className={styles.topbar}>
             <div>
-              <p className={styles.panelKicker}>Admission product</p>
+              <p className={styles.panelKicker}>{tenantMode ? 'Tenant portal' : 'Admission portal'}</p>
               <h1 className={styles.topbarTitle}>
-                {session ? `${session.tenantName} admission desk` : 'Admission workspace preview'}
+                {session
+                  ? `${session.tenantName} admissions desk`
+                  : tenantMode
+                    ? `${tenantName ?? selectedTenant?.name ?? 'Tenant'} portal`
+                    : 'Admission portal preview'}
               </h1>
               <p className={styles.topbarCopy}>
-                A focused front office workspace for intake, application review, interviews, offers, and enrollment.
+                {tenantMode
+                  ? 'A tenant-branded portal for intake, application review, interviews, offers, and enrollment.'
+                  : 'A focused front office portal for intake, application review, interviews, offers, and enrollment.'}
               </p>
             </div>
             <div className={styles.topbarActions}>
@@ -1356,20 +1471,26 @@ export function AdmissionWorkspace() {
 
           <section className={styles.hero}>
             <div>
-              <p className={styles.panelKicker}>Admission dashboard</p>
+              <p className={styles.panelKicker}>{tenantMode ? 'Tenant dashboard' : 'Admission dashboard'}</p>
               <h2 className={styles.heroTitle}>
-                {session ? 'Manage the full intake pipeline from a single screen.' : 'Sign in to unlock the live admission workflow.'}
+                {session
+                  ? 'Manage the full intake pipeline from a single screen.'
+                  : tenantMode
+                    ? `Sign in to unlock ${tenantName ?? selectedTenant?.name ?? 'this tenant'} admissions.`
+                    : 'Sign in to unlock the live admission workflow.'}
               </h2>
               <p className={styles.heroCopy}>
                 {session
                   ? `The dashboard below is reading directly from the admission API for ${session.tenantName}.`
-                  : 'Choose a tenant, sign in with the seeded admin account, and the UI will connect to the live admission APIs.'}
+                  : tenantMode
+                    ? 'Use the tenant account to connect to the live portal and keep staff work inside the branded domain.'
+                    : 'Choose a tenant, sign in with the seeded admin account, and the UI will connect to the live admission APIs.'}
               </p>
             </div>
             <div className={styles.heroAside}>
               <div className={styles.inlineStat}>
-                <span className={styles.quickStatLabel}>Backend</span>
-                <strong className={styles.quickStatValue}>{health?.appName ?? 'EduCore API'}</strong>
+                <span className={styles.quickStatLabel}>{tenantMode ? 'Tenant' : 'Backend'}</span>
+                <strong className={styles.quickStatValue}>{tenantMode ? tenantName ?? selectedTenant?.name ?? 'Tenant' : health?.appName ?? 'EduCore API'}</strong>
               </div>
               <div className={styles.inlineStat}>
                 <span className={styles.quickStatLabel}>Loaded at</span>
@@ -2163,6 +2284,14 @@ export function AdmissionWorkspace() {
                           <button
                             className={styles.buttonSecondarySmall}
                             type="button"
+                            onClick={() => handleCycleUseInApplication(cycle)}
+                            disabled={busy}
+                          >
+                            Use
+                          </button>
+                          <button
+                            className={styles.buttonSecondarySmall}
+                            type="button"
                             onClick={() => handleCycleEdit(cycle)}
                             disabled={busy}
                           >
@@ -2310,6 +2439,14 @@ export function AdmissionWorkspace() {
                           <button
                             className={styles.buttonSecondarySmall}
                             type="button"
+                            onClick={() => handleProgrammeUseInApplication(programme)}
+                            disabled={busy}
+                          >
+                            Use
+                          </button>
+                          <button
+                            className={styles.buttonSecondarySmall}
+                            type="button"
                             onClick={() => handleProgrammeEdit(programme)}
                             disabled={busy}
                           >
@@ -2327,21 +2464,41 @@ export function AdmissionWorkspace() {
               <div className={styles.sectionHeader}>
                 <div>
                   <p className={styles.panelKicker}>Start here</p>
-                  <h2 className={styles.sectionTitle}>A live API-backed admission UI is ready to go.</h2>
+                  <h2 className={styles.sectionTitle}>
+                    {tenantMode ? 'A tenant-branded portal is ready to go.' : 'A live API-backed admission UI is ready to go.'}
+                  </h2>
                   <p className={styles.sectionCopy}>
-                    The seeded admin account is `admin@educore.local` with `Password123!`. Pick a tenant from the list on the left and open the workspace.
+                    {tenantMode
+                      ? `Sign in with a ${tenantName ?? selectedTenant?.name ?? 'tenant'} account to continue the workflow on this domain.`
+                      : 'The seeded admin account is `admin@educore.local` with `Password123!`. Pick a tenant from the list on the left and open the portal.'}
                   </p>
                 </div>
               </div>
               <div className={styles.metricGrid}>
                 <MetricCard label="Workflow" value="Intake" hint="Applicants, applications, interviews, offers, enrollment" />
-                <MetricCard label="API base" value={API_BASE_URL} hint="Edit NEXT_PUBLIC_API_BASE_URL to point at another environment" />
-                <MetricCard label="Seed tenants" value={tenants.length || health?.snapshot.tenants || 0} hint="Public tenant directory for login" />
+                <MetricCard
+                  label={tenantMode ? 'Domain' : 'API base'}
+                  value={tenantMode ? selectedTenant?.slug ?? preferredTenantSlug ?? 'Tenant' : API_BASE_URL}
+                  hint={
+                    tenantMode
+                      ? 'This page is bound to the tenant domain.'
+                      : 'Edit NEXT_PUBLIC_API_BASE_URL to point at another environment'
+                  }
+                />
+                <MetricCard
+                  label={tenantMode ? 'Products' : 'Seed tenants'}
+                  value={
+                    tenantMode
+                      ? selectedTenant?.enabledProducts.filter((product) => product !== 'platform').length ?? 0
+                      : tenants.length || health?.snapshot.tenants || 0
+                  }
+                  hint={tenantMode ? 'Enabled products on this domain' : 'Public tenant directory for login'}
+                />
               </div>
             </section>
           )}
 
-          {workspaceLoading ? <div className={styles.banner}>Refreshing the admission workspace...</div> : null}
+          {workspaceLoading ? <div className={styles.banner}>Refreshing the admission portal...</div> : null}
           {booting ? <div className={styles.banner}>Bootstrapping admission access...</div> : null}
         </section>
       </div>

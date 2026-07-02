@@ -1,24 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class ScheduleInterviewDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   scheduledAt!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   location!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   interviewer!: string;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   notes?: string | null;
 }
-

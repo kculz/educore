@@ -1,25 +1,26 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEmail, IsIn, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, MinLength, ValidateNested } from 'class-validator';
 
 import { CreateGuardianDto } from './create-guardian.dto';
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class UpdateApplicantDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   firstName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   lastName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   otherNames?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -29,12 +30,12 @@ export class UpdateApplicantDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   phoneNumber?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   dateOfBirth?: string | null;
 
   @ApiPropertyOptional({ enum: ['male', 'female', 'other', 'prefer_not_to_say'] })
@@ -53,4 +54,3 @@ export class UpdateApplicantDto {
   @IsIn(['draft', 'submitted', 'approved', 'rejected', 'offered', 'accepted', 'enrolled', 'withdrawn'])
   status?: 'draft' | 'submitted' | 'approved' | 'rejected' | 'offered' | 'accepted' | 'enrolled' | 'withdrawn';
 }
-

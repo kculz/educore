@@ -14,6 +14,7 @@ import { ResponseFormatterService } from './formatting/response-formatter.servic
 import { SearchService } from './query/search.service';
 import { NotificationProviderService } from './notifications/notification-provider.service';
 import { SortingService } from './query/sorting.service';
+import { RequestTimingInterceptor } from './interceptors/request-timing.interceptor';
 import { PlatformValidationService } from './validation/platform-validation.service';
 import { StorageProviderService } from './storage/storage-provider.service';
 
@@ -32,6 +33,7 @@ const providers = [
   NotificationProviderService,
   BackgroundJobsService,
   PlatformValidationService,
+  RequestTimingInterceptor,
   ResponseFormatterService,
   PlatformExceptionFilter,
 ];
@@ -42,4 +44,3 @@ const providers = [
   exports: providers,
 })
 export class SharedModule {}
-

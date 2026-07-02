@@ -4,27 +4,27 @@ import {
   IsEmail,
   IsIn,
   IsOptional,
-  IsString,
   MinLength,
   ValidateNested,
 } from 'class-validator';
 
 import { CreateGuardianDto } from './create-guardian.dto';
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class CreateApplicantDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   firstName!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   lastName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   otherNames?: string;
 
   @ApiPropertyOptional({ nullable: true })
@@ -34,12 +34,12 @@ export class CreateApplicantDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   phoneNumber?: string | null;
 
   @ApiPropertyOptional({ nullable: true, example: '2012-03-14' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   dateOfBirth?: string | null;
 
   @ApiPropertyOptional({ enum: ['male', 'female', 'other', 'prefer_not_to_say'] })
@@ -53,4 +53,3 @@ export class CreateApplicantDto {
   @Type(() => CreateGuardianDto)
   guardian?: CreateGuardianDto;
 }
-

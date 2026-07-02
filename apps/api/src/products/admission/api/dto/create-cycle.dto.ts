@@ -1,24 +1,26 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsOptional, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class CreateCycleDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   academicYear!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   name!: string;
 
   @ApiProperty({ example: '2026-01-01' })
-  @IsString()
+  @IsTrimmedString()
   startDate!: string;
 
   @ApiPropertyOptional({ nullable: true, example: '2026-12-31' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   endDate?: string | null;
 
   @ApiPropertyOptional({ enum: ['draft', 'open', 'closed', 'archived'] })

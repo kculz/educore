@@ -1,14 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class CreateGuardianDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   fullName!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   relationship!: string;
 
@@ -19,7 +21,6 @@ export class CreateGuardianDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   phoneNumber?: string | null;
 }
-

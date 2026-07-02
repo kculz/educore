@@ -1,36 +1,38 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class ListAdmissionQueryDto {
   @ApiPropertyOptional({ description: 'Search term' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   q?: string;
 
   @ApiPropertyOptional({ description: 'Filter by status' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   status?: string;
 
   @ApiPropertyOptional({ description: 'Filter by applicant id' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   applicantId?: string;
 
   @ApiPropertyOptional({ description: 'Filter by cycle id' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   cycleId?: string;
 
   @ApiPropertyOptional({ description: 'Filter by programme id' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   programmeId?: string;
 
   @ApiPropertyOptional({ description: 'Sort field' })
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   sortBy?: string;
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
@@ -52,4 +54,3 @@ export class ListAdmissionQueryDto {
   @Min(1)
   limit?: number;
 }
-

@@ -1,13 +1,16 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
 
 import { AccessScope } from '../../../core/platform-access/platform-access.decorator';
+import {
+  CurrentTenantId,
+  CurrentUserId,
+} from '../../../core/platform-access/platform-request.decorator';
 import { AdmissionService } from '../application/admission.service';
 import {
   AdmissionApplicantDto,
@@ -30,15 +33,6 @@ import type { UpdateApplicationDto } from './dto/update-application.dto';
 import type { UpdateCycleDto } from './dto/update-cycle.dto';
 import type { UpdateProgrammeDto } from './dto/update-programme.dto';
 
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-  };
-  user?: {
-    sub: string;
-  };
-};
-
 @ApiTags('Admission')
 @ApiBearerAuth()
 @Controller({ path: 'admission', version: '1' })
@@ -48,44 +42,57 @@ export class AdmissionController {
 
   @Get('dashboard')
   @ApiOkResponse({ type: AdmissionDashboardDto })
-  dashboard(@Req() request: RequestWithContext) {
-    return this.admissionService.dashboard(this.tenantId(request));
+  dashboard(@CurrentTenantId() tenantId: string | null) {
+    return this.admissionService.dashboard(tenantId ?? '');
   }
 
   @Get('cycles')
   @ApiOkResponse({ type: AdmissionCycleDto, isArray: true })
-  listCycles(@Req() request: RequestWithContext, @Query() query: ListAdmissionQueryDto) {
-    return this.admissionService.listCycles(this.tenantId(request), query);
+  listCycles(@CurrentTenantId() tenantId: string | null, @Query() query: ListAdmissionQueryDto) {
+    return this.admissionService.listCycles(tenantId ?? '', query);
   }
 
   @Post('cycles')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Create a cycle' })
   @ApiOkResponse({ type: AdmissionCycleDto })
-  createCycle(@Req() request: RequestWithContext, @Body() dto: CreateCycleDto) {
-    return this.admissionService.createCycle(this.tenantId(request), this.actorUserId(request), dto);
+  createCycle(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Body() dto: CreateCycleDto,
+  ) {
+    return this.admissionService.createCycle(tenantId ?? '', actorUserId ?? null, dto);
   }
 
   @Patch('cycles/:id')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Update a cycle' })
   @ApiOkResponse({ type: AdmissionCycleDto })
-  updateCycle(@Req() request: RequestWithContext, @Param('id') id: string, @Body() dto: UpdateCycleDto) {
-    return this.admissionService.updateCycle(this.tenantId(request), this.actorUserId(request), id, dto);
+  updateCycle(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Param('id') id: string,
+    @Body() dto: UpdateCycleDto,
+  ) {
+    return this.admissionService.updateCycle(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Get('programmes')
   @ApiOkResponse({ type: AdmissionProgrammeDto, isArray: true })
-  listProgrammes(@Req() request: RequestWithContext, @Query() query: ListAdmissionQueryDto) {
-    return this.admissionService.listProgrammes(this.tenantId(request), query);
+  listProgrammes(@CurrentTenantId() tenantId: string | null, @Query() query: ListAdmissionQueryDto) {
+    return this.admissionService.listProgrammes(tenantId ?? '', query);
   }
 
   @Post('programmes')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Create a programme' })
   @ApiOkResponse({ type: AdmissionProgrammeDto })
-  createProgramme(@Req() request: RequestWithContext, @Body() dto: CreateProgrammeDto) {
-    return this.admissionService.createProgramme(this.tenantId(request), this.actorUserId(request), dto);
+  createProgramme(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Body() dto: CreateProgrammeDto,
+  ) {
+    return this.admissionService.createProgramme(tenantId ?? '', actorUserId ?? null, dto);
   }
 
   @Patch('programmes/:id')
@@ -93,67 +100,85 @@ export class AdmissionController {
   @ApiOperation({ summary: 'Update a programme' })
   @ApiOkResponse({ type: AdmissionProgrammeDto })
   updateProgramme(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
     @Param('id') id: string,
     @Body() dto: UpdateProgrammeDto,
   ) {
-    return this.admissionService.updateProgramme(this.tenantId(request), this.actorUserId(request), id, dto);
+    return this.admissionService.updateProgramme(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Get('applicants')
   @ApiOkResponse({ type: AdmissionApplicantDto, isArray: true })
-  listApplicants(@Req() request: RequestWithContext, @Query() query: ListAdmissionQueryDto) {
-    return this.admissionService.listApplicants(this.tenantId(request), query);
+  listApplicants(@CurrentTenantId() tenantId: string | null, @Query() query: ListAdmissionQueryDto) {
+    return this.admissionService.listApplicants(tenantId ?? '', query);
   }
 
   @Get('applicants/:id')
   @ApiOkResponse({ type: AdmissionApplicantDto })
-  getApplicant(@Req() request: RequestWithContext, @Param('id') id: string) {
-    return this.admissionService.getApplicant(this.tenantId(request), id);
+  getApplicant(@CurrentTenantId() tenantId: string | null, @Param('id') id: string) {
+    return this.admissionService.getApplicant(tenantId ?? '', id);
   }
 
   @Post('applicants')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Create an applicant' })
   @ApiOkResponse({ type: AdmissionApplicantDto })
-  createApplicant(@Req() request: RequestWithContext, @Body() dto: CreateApplicantDto) {
-    return this.admissionService.createApplicant(this.tenantId(request), this.actorUserId(request), dto);
+  createApplicant(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Body() dto: CreateApplicantDto,
+  ) {
+    return this.admissionService.createApplicant(tenantId ?? '', actorUserId ?? null, dto);
   }
 
   @Patch('applicants/:id')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Update an applicant' })
   @ApiOkResponse({ type: AdmissionApplicantDto })
-  updateApplicant(@Req() request: RequestWithContext, @Param('id') id: string, @Body() dto: UpdateApplicantDto) {
-    return this.admissionService.updateApplicant(this.tenantId(request), this.actorUserId(request), id, dto);
+  updateApplicant(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicantDto,
+  ) {
+    return this.admissionService.updateApplicant(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Delete('applicants/:id')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Withdraw an applicant' })
   @ApiOkResponse({ type: AdmissionApplicantDto })
-  deleteApplicant(@Req() request: RequestWithContext, @Param('id') id: string) {
-    return this.admissionService.deleteApplicant(this.tenantId(request), this.actorUserId(request), id);
+  deleteApplicant(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Param('id') id: string,
+  ) {
+    return this.admissionService.deleteApplicant(tenantId ?? '', actorUserId ?? null, id);
   }
 
   @Get('applications')
   @ApiOkResponse({ type: AdmissionApplicationDto, isArray: true })
-  listApplications(@Req() request: RequestWithContext, @Query() query: ListAdmissionQueryDto) {
-    return this.admissionService.listApplications(this.tenantId(request), query);
+  listApplications(@CurrentTenantId() tenantId: string | null, @Query() query: ListAdmissionQueryDto) {
+    return this.admissionService.listApplications(tenantId ?? '', query);
   }
 
   @Get('applications/:id')
   @ApiOkResponse({ type: AdmissionApplicationDto })
-  getApplication(@Req() request: RequestWithContext, @Param('id') id: string) {
-    return this.admissionService.getApplication(this.tenantId(request), id);
+  getApplication(@CurrentTenantId() tenantId: string | null, @Param('id') id: string) {
+    return this.admissionService.getApplication(tenantId ?? '', id);
   }
 
   @Post('applications')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Create an application' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
-  createApplication(@Req() request: RequestWithContext, @Body() dto: CreateApplicationDto) {
-    return this.admissionService.createApplication(this.tenantId(request), this.actorUserId(request), dto);
+  createApplication(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Body() dto: CreateApplicationDto,
+  ) {
+    return this.admissionService.createApplication(tenantId ?? '', actorUserId ?? null, dto);
   }
 
   @Patch('applications/:id')
@@ -161,19 +186,24 @@ export class AdmissionController {
   @ApiOperation({ summary: 'Update a draft application' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
   updateApplication(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
     @Param('id') id: string,
     @Body() dto: UpdateApplicationDto,
   ) {
-    return this.admissionService.updateApplication(this.tenantId(request), this.actorUserId(request), id, dto);
+    return this.admissionService.updateApplication(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Post('applications/:id/submit')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Submit an application' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
-  submitApplication(@Req() request: RequestWithContext, @Param('id') id: string) {
-    return this.admissionService.submitApplication(this.tenantId(request), this.actorUserId(request), id);
+  submitApplication(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Param('id') id: string,
+  ) {
+    return this.admissionService.submitApplication(tenantId ?? '', actorUserId ?? null, id);
   }
 
   @Post('applications/:id/schedule-interview')
@@ -181,19 +211,24 @@ export class AdmissionController {
   @ApiOperation({ summary: 'Schedule an interview' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
   scheduleInterview(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
     @Param('id') id: string,
     @Body() dto: ScheduleInterviewDto,
   ) {
-    return this.admissionService.scheduleInterview(this.tenantId(request), this.actorUserId(request), id, dto);
+    return this.admissionService.scheduleInterview(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Post('applications/:id/approve')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Approve an application' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
-  approveApplication(@Req() request: RequestWithContext, @Param('id') id: string) {
-    return this.admissionService.approveApplication(this.tenantId(request), this.actorUserId(request), id);
+  approveApplication(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Param('id') id: string,
+  ) {
+    return this.admissionService.approveApplication(tenantId ?? '', actorUserId ?? null, id);
   }
 
   @Post('applications/:id/reject')
@@ -201,11 +236,12 @@ export class AdmissionController {
   @ApiOperation({ summary: 'Reject an application' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
   rejectApplication(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
     @Param('id') id: string,
     @Body() dto: RejectApplicationDto,
   ) {
-    return this.admissionService.rejectApplication(this.tenantId(request), this.actorUserId(request), id, dto);
+    return this.admissionService.rejectApplication(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Post('applications/:id/offer')
@@ -213,19 +249,24 @@ export class AdmissionController {
   @ApiOperation({ summary: 'Offer admission' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
   offerAdmission(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
     @Param('id') id: string,
     @Body() dto: OfferAdmissionDto,
   ) {
-    return this.admissionService.offerAdmission(this.tenantId(request), this.actorUserId(request), id, dto);
+    return this.admissionService.offerAdmission(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 
   @Post('applications/:id/accept')
   @AccessScope({ productCode: 'admission', permission: 'admission.write' })
   @ApiOperation({ summary: 'Accept admission offer' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
-  acceptOffer(@Req() request: RequestWithContext, @Param('id') id: string) {
-    return this.admissionService.acceptOffer(this.tenantId(request), this.actorUserId(request), id);
+  acceptOffer(
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
+    @Param('id') id: string,
+  ) {
+    return this.admissionService.acceptOffer(tenantId ?? '', actorUserId ?? null, id);
   }
 
   @Post('applications/:id/enroll')
@@ -233,18 +274,11 @@ export class AdmissionController {
   @ApiOperation({ summary: 'Enroll the student' })
   @ApiOkResponse({ type: AdmissionApplicationDto })
   enrollStudent(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
+    @CurrentUserId() actorUserId: string | null,
     @Param('id') id: string,
     @Body() dto: EnrollStudentDto,
   ) {
-    return this.admissionService.enrollStudent(this.tenantId(request), this.actorUserId(request), id, dto);
-  }
-
-  private tenantId(request: RequestWithContext) {
-    return request.platformContext?.tenantId ?? request.header('x-tenant-id') ?? '';
-  }
-
-  private actorUserId(request: RequestWithContext) {
-    return request.user?.sub ?? null;
+    return this.admissionService.enrollStudent(tenantId ?? '', actorUserId ?? null, id, dto);
   }
 }

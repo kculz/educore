@@ -1,22 +1,12 @@
-import { Body, Controller, Get, Inject, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import { AccessScope, AnonymousRoute, PublicRoute } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId, CurrentUserId } from '../platform-access/platform-request.decorator';
 import { AuthResponseDto, AuthTenantDto, AuthUserDto } from './dto/auth-response.dto';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import type { Request } from 'express';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-    productCode: string;
-  };
-  user?: {
-    sub: string;
-  };
-};
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -35,9 +25,9 @@ export class AuthController {
   @AccessScope({ productCode: 'platform' })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ type: AuthResponseDto })
-  login(@Req() request: RequestWithContext, @Body() dto: LoginDto) {
+  login(@CurrentTenantId() tenantId: string | null, @Body() dto: LoginDto) {
     return this.authService.login({
-      tenantId: request.platformContext?.tenantId ?? request.header('x-tenant-id') ?? '',
+      tenantId: tenantId ?? '',
       email: dto.email,
       password: dto.password,
     });
@@ -48,9 +38,9 @@ export class AuthController {
   @AccessScope({ productCode: 'platform' })
   @ApiBody({ type: RefreshTokenDto })
   @ApiOkResponse({ type: AuthResponseDto })
-  refresh(@Req() request: RequestWithContext, @Body() dto: RefreshTokenDto) {
+  refresh(@CurrentTenantId() tenantId: string | null, @Body() dto: RefreshTokenDto) {
     return this.authService.refresh({
-      tenantId: request.platformContext?.tenantId ?? request.header('x-tenant-id') ?? '',
+      tenantId: tenantId ?? '',
       refreshToken: dto.refreshToken,
     });
   }
@@ -59,7 +49,7 @@ export class AuthController {
   @ApiBearerAuth()
   @AccessScope({ productCode: 'platform', permission: 'auth.me' })
   @ApiOkResponse({ type: AuthUserDto })
-  me(@Req() request: RequestWithContext) {
-    return this.authService.me(request.user?.sub ?? '');
+  me(@CurrentUserId() userId: string | null) {
+    return this.authService.me(userId ?? '');
   }
 }

@@ -1,13 +1,17 @@
 import { Injectable } from '@nestjs/common';
 
-interface CacheEntry<T> {
-  value: T;
-  expiresAt: number | null;
-}
+import { CACHE_NAMESPACE } from '../constants/cache.constants';
+import { buildCacheKey, resolveCacheExpiresAt } from './cache.helpers';
+import type { CacheEntry } from '../interfaces/cache.interface';
 
 @Injectable()
 export class PlatformCacheService {
+  private readonly namespace = CACHE_NAMESPACE;
   private readonly cache = new Map<string, CacheEntry<unknown>>();
+
+  key(...parts: Array<string | number | boolean | null | undefined>) {
+    return buildCacheKey(this.namespace, ...parts);
+  }
 
   get<T>(key: string) {
     const entry = this.cache.get(key);
@@ -30,7 +34,7 @@ export class PlatformCacheService {
   set<T>(key: string, value: T, ttlMs?: number) {
     this.cache.set(key, {
       value,
-      expiresAt: ttlMs && ttlMs > 0 ? Date.now() + ttlMs : null,
+      expiresAt: resolveCacheExpiresAt(ttlMs),
     });
 
     return value;
@@ -59,4 +63,3 @@ export class PlatformCacheService {
     return Array.from(this.cache.keys());
   }
 }
-

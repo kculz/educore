@@ -1,10 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength } from 'class-validator';
+import { MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../../shared/validators/trimmed-string.validator';
 
 export class RejectApplicationDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(3)
   reason!: string;
 }
-

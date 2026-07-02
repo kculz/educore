@@ -158,4 +158,3 @@ export interface AdmissionDashboardSummary {
   programmes: number;
   acceptanceRate: number;
 }
-
