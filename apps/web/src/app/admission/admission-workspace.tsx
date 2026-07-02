@@ -26,11 +26,14 @@ import {
   submitAdmissionApplication,
   updateAdmissionApplicant,
   updateAdmissionApplication,
+  updateAdmissionCycle,
+  updateAdmissionProgramme,
   type AdmissionApplicant,
   type AdmissionApplicantStatus,
   type AdmissionApplication,
   type AdmissionApplicationStatus,
   type AdmissionCycle,
+  type AdmissionCycleStatus,
   type AdmissionDashboard,
   type AdmissionGender,
   type AdmissionProgramme,
@@ -41,6 +44,8 @@ import {
   type CreateApplicantInput,
   type UpdateApplicationInput,
   type UpdateApplicantInput,
+  type UpdateCycleInput,
+  type UpdateProgrammeInput,
 } from '@web/lib/educore-api';
 import styles from './admission-workspace.module.css';
 
@@ -94,6 +99,24 @@ const INITIAL_APPLICATION_FORM = {
   submissionNotes: '',
 };
 
+const INITIAL_CYCLE_FORM = {
+  academicYear: '',
+  name: '',
+  startDate: '',
+  endDate: '',
+  status: 'draft' as AdmissionCycleStatus,
+};
+
+const INITIAL_PROGRAMME_FORM = {
+  code: '',
+  name: '',
+  level: '',
+  capacity: '',
+  active: true,
+};
+
+const CYCLE_STATUSES: AdmissionCycleStatus[] = ['draft', 'open', 'closed', 'archived'];
+
 const APPLICATION_STATUSES: Array<{ value: AdmissionApplicationStatus | ''; label: string }> = [
   { value: '', label: 'All statuses' },
   { value: 'draft', label: 'Draft' },
@@ -110,6 +133,8 @@ type WorkspaceQuery = typeof INITIAL_QUERY;
 type LoginFormState = typeof INITIAL_LOGIN;
 type ApplicationFormState = typeof INITIAL_APPLICATION_FORM;
 type ApplicantFormMode = 'create' | 'edit';
+type CycleFormState = typeof INITIAL_CYCLE_FORM;
+type ProgrammeFormState = typeof INITIAL_PROGRAMME_FORM;
 
 type ApplicantFormState = {
   firstName: string;
@@ -309,6 +334,67 @@ function buildApplicationUpdateInput(form: ApplicationFormState): UpdateApplicat
   };
 }
 
+function cycleFormFromCycle(cycle: AdmissionCycle): CycleFormState {
+  return {
+    academicYear: cycle.academicYear,
+    name: cycle.name,
+    startDate: cycle.startDate,
+    endDate: cycle.endDate ?? '',
+    status: cycle.status,
+  };
+}
+
+function buildCycleUpdateInput(form: CycleFormState): UpdateCycleInput {
+  const academicYear = queryValue(form.academicYear);
+  const name = queryValue(form.name);
+  const startDate = queryValue(form.startDate);
+
+  if (!academicYear || !name || !startDate) {
+    throw new Error('Academic year, cycle name, and start date are required.');
+  }
+
+  return {
+    academicYear,
+    name,
+    startDate,
+    endDate: queryValue(form.endDate) ?? null,
+    status: form.status,
+  };
+}
+
+function programmeFormFromProgramme(programme: AdmissionProgramme): ProgrammeFormState {
+  return {
+    code: programme.code,
+    name: programme.name,
+    level: programme.level,
+    capacity: String(programme.capacity),
+    active: programme.active,
+  };
+}
+
+function buildProgrammeUpdateInput(form: ProgrammeFormState): UpdateProgrammeInput {
+  const code = queryValue(form.code);
+  const name = queryValue(form.name);
+  const level = queryValue(form.level);
+  const capacity = Number.parseInt(form.capacity, 10);
+
+  if (!code || !name || !level) {
+    throw new Error('Programme code, name, and level are required.');
+  }
+
+  if (!Number.isInteger(capacity) || capacity < 1) {
+    throw new Error('Programme capacity must be at least 1.');
+  }
+
+  return {
+    code,
+    name,
+    level,
+    capacity,
+    active: form.active,
+  };
+}
+
 function applicationFormFromApplication(application: AdmissionApplication): ApplicationFormState {
   return {
     applicantId: application.applicantId,
@@ -357,13 +443,21 @@ export function AdmissionWorkspace() {
   const [query, setQuery] = useState<WorkspaceQuery>(INITIAL_QUERY);
   const [applicantForm, setApplicantForm] = useState<ApplicantFormState>(INITIAL_APPLICANT_FORM);
   const [editingApplicantId, setEditingApplicantId] = useState<string | null>(null);
+  const [cycleForm, setCycleForm] = useState<CycleFormState>(INITIAL_CYCLE_FORM);
+  const [editingCycleId, setEditingCycleId] = useState<string | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationFormState>(INITIAL_APPLICATION_FORM);
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
   const [editingApplicationSnapshot, setEditingApplicationSnapshot] = useState<AdmissionApplication | null>(null);
+  const [programmeForm, setProgrammeForm] = useState<ProgrammeFormState>(INITIAL_PROGRAMME_FORM);
+  const [editingProgrammeId, setEditingProgrammeId] = useState<string | null>(null);
   const applicantFormRef = useRef<HTMLDivElement | null>(null);
+  const cycleFormRef = useRef<HTMLDivElement | null>(null);
   const applicationFormRef = useRef<HTMLDivElement | null>(null);
+  const programmeFormRef = useRef<HTMLDivElement | null>(null);
   const isEditingApplicant = editingApplicantId !== null;
+  const isEditingCycle = editingCycleId !== null;
   const isEditingApplication = editingApplicationId !== null;
+  const isEditingProgramme = editingProgrammeId !== null;
 
   const refreshWorkspace = async (targetSession: AdmissionSession, targetQuery: WorkspaceQuery = query) => {
     setWorkspaceLoading(true);
@@ -551,9 +645,13 @@ export function AdmissionWorkspace() {
     setQuery(INITIAL_QUERY);
     setApplicantForm(INITIAL_APPLICANT_FORM);
     setEditingApplicantId(null);
+    setCycleForm(INITIAL_CYCLE_FORM);
+    setEditingCycleId(null);
     setApplicationForm(INITIAL_APPLICATION_FORM);
     setEditingApplicationId(null);
     setEditingApplicationSnapshot(null);
+    setProgrammeForm(INITIAL_PROGRAMME_FORM);
+    setEditingProgrammeId(null);
     setFlash({
       kind: 'success',
       message: 'Session cleared. Sign back in to continue the admission workflow.',
@@ -575,6 +673,17 @@ export function AdmissionWorkspace() {
     setEditingApplicantId(null);
   }
 
+  function handleCycleEdit(cycle: AdmissionCycle) {
+    setCycleForm(cycleFormFromCycle(cycle));
+    setEditingCycleId(cycle.id);
+    cycleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleCycleFormReset() {
+    setCycleForm(INITIAL_CYCLE_FORM);
+    setEditingCycleId(null);
+  }
+
   function handleApplicationEdit(application: AdmissionApplication) {
     setApplicationForm(applicationFormFromApplication(application));
     setEditingApplicationId(application.id);
@@ -586,6 +695,17 @@ export function AdmissionWorkspace() {
     setApplicationForm(INITIAL_APPLICATION_FORM);
     setEditingApplicationId(null);
     setEditingApplicationSnapshot(null);
+  }
+
+  function handleProgrammeEdit(programme: AdmissionProgramme) {
+    setProgrammeForm(programmeFormFromProgramme(programme));
+    setEditingProgrammeId(programme.id);
+    programmeFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleProgrammeFormReset() {
+    setProgrammeForm(INITIAL_PROGRAMME_FORM);
+    setEditingProgrammeId(null);
   }
 
   async function handleApplicantSubmit(event: FormEvent<HTMLFormElement>) {
@@ -639,6 +759,39 @@ export function AdmissionWorkspace() {
     }
   }
 
+  async function handleCycleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session) {
+      return;
+    }
+
+    setBusy(true);
+    setFlash(null);
+
+    try {
+      if (!isEditingCycle || !editingCycleId) {
+        throw new Error('Select a cycle to edit first.');
+      }
+
+      const saved = await updateAdmissionCycle(session, editingCycleId, buildCycleUpdateInput(cycleForm));
+
+      handleCycleFormReset();
+      setFlash({
+        kind: 'success',
+        message: `${saved.name} was updated.`,
+      });
+      await refreshWorkspace(session, query);
+    } catch (error) {
+      const message =
+        error instanceof EduCoreApiError || error instanceof Error
+          ? error.message
+          : 'Unable to update the cycle.';
+      setFlash({ kind: 'error', message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleApplicationSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session) {
@@ -685,6 +838,43 @@ export function AdmissionWorkspace() {
           : isEditingApplication
             ? 'Unable to update the application.'
             : 'Unable to create the application.';
+      setFlash({ kind: 'error', message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleProgrammeSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session) {
+      return;
+    }
+
+    setBusy(true);
+    setFlash(null);
+
+    try {
+      if (!isEditingProgramme || !editingProgrammeId) {
+        throw new Error('Select a programme to edit first.');
+      }
+
+      const saved = await updateAdmissionProgramme(
+        session,
+        editingProgrammeId,
+        buildProgrammeUpdateInput(programmeForm),
+      );
+
+      handleProgrammeFormReset();
+      setFlash({
+        kind: 'success',
+        message: `${saved.code} was updated.`,
+      });
+      await refreshWorkspace(session, query);
+    } catch (error) {
+      const message =
+        error instanceof EduCoreApiError || error instanceof Error
+          ? error.message
+          : 'Unable to update the programme.';
       setFlash({ kind: 'error', message });
     } finally {
       setBusy(false);
@@ -1835,7 +2025,7 @@ export function AdmissionWorkspace() {
               </section>
 
               <section className={styles.split}>
-                <div className={styles.panel}>
+                <div className={styles.panel} ref={cycleFormRef}>
                   <div className={styles.panelHeader}>
                     <div>
                       <p className={styles.panelKicker}>Cycles</p>
@@ -1843,6 +2033,113 @@ export function AdmissionWorkspace() {
                     </div>
                     <span className={styles.pill}>{workspace.dashboard.activeCycleName ?? 'No active cycle'}</span>
                   </div>
+                  {isEditingCycle ? (
+                    <div className={styles.banner}>
+                      <strong>Editing cycle</strong>
+                      <p className={styles.helperText}>
+                        Update the live cycle record, then save to keep admissions aligned with the active intake calendar.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className={styles.helperText}>
+                      Select a cycle below to edit its academic year, dates, or status.
+                    </p>
+                  )}
+                  {isEditingCycle ? (
+                    <form className={styles.formStack} onSubmit={handleCycleSubmit}>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Academic year">
+                          <input
+                            className={styles.input}
+                            value={cycleForm.academicYear}
+                            onChange={(event) =>
+                              setCycleForm((current) => ({
+                                ...current,
+                                academicYear: event.target.value,
+                              }))
+                            }
+                            placeholder="2026/2027"
+                          />
+                        </Field>
+                        <Field label="Cycle name">
+                          <input
+                            className={styles.input}
+                            value={cycleForm.name}
+                            onChange={(event) =>
+                              setCycleForm((current) => ({
+                                ...current,
+                                name: event.target.value,
+                              }))
+                            }
+                            placeholder="2026 Intake"
+                          />
+                        </Field>
+                      </div>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Start date">
+                          <input
+                            type="date"
+                            className={styles.input}
+                            value={cycleForm.startDate}
+                            onChange={(event) =>
+                              setCycleForm((current) => ({
+                                ...current,
+                                startDate: event.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                        <Field label="End date">
+                          <input
+                            type="date"
+                            className={styles.input}
+                            value={cycleForm.endDate}
+                            onChange={(event) =>
+                              setCycleForm((current) => ({
+                                ...current,
+                                endDate: event.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Status">
+                          <select
+                            className={styles.select}
+                            value={cycleForm.status}
+                            onChange={(event) =>
+                              setCycleForm((current) => ({
+                                ...current,
+                                status: event.target.value as AdmissionCycleStatus,
+                              }))
+                            }
+                          >
+                            {CYCLE_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {statusLabel(status)}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <div />
+                      </div>
+                      <div className={styles.buttonRow}>
+                        <button
+                          className={styles.buttonSecondary}
+                          type="button"
+                          onClick={handleCycleFormReset}
+                          disabled={busy}
+                        >
+                          Cancel editing
+                        </button>
+                        <button className={styles.button} type="submit" disabled={busy}>
+                          {busy ? 'Saving changes...' : 'Save changes'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+                  <div className={styles.softDivider} />
                   <div className={styles.workflowList}>
                     {workspace.cycles.items.map((cycle) => (
                       <div key={cycle.id} className={styles.workflowItem}>
@@ -1856,12 +2153,22 @@ export function AdmissionWorkspace() {
                             {cycle.endDate ? `to ${formatDate(cycle.endDate)}` : ''}
                           </span>
                         </div>
+                        <div className={styles.workflowActions}>
+                          <button
+                            className={styles.buttonSecondarySmall}
+                            type="button"
+                            onClick={() => handleCycleEdit(cycle)}
+                            disabled={busy}
+                          >
+                            Edit
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className={styles.panel}>
+                <div className={styles.panel} ref={programmeFormRef}>
                   <div className={styles.panelHeader}>
                     <div>
                       <p className={styles.panelKicker}>Programmes</p>
@@ -1869,6 +2176,112 @@ export function AdmissionWorkspace() {
                     </div>
                     <span className={styles.pill}>{formatNumber(workspace.dashboard.programmes)} active</span>
                   </div>
+                  {isEditingProgramme ? (
+                    <div className={styles.banner}>
+                      <strong>Editing programme</strong>
+                      <p className={styles.helperText}>
+                        Adjust the live programme details, capacity, or active state, then save the changes.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className={styles.helperText}>
+                      Select a programme below to edit its code, name, capacity, or active status.
+                    </p>
+                  )}
+                  {isEditingProgramme ? (
+                    <form className={styles.formStack} onSubmit={handleProgrammeSubmit}>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Programme code">
+                          <input
+                            className={styles.input}
+                            value={programmeForm.code}
+                            onChange={(event) =>
+                              setProgrammeForm((current) => ({
+                                ...current,
+                                code: event.target.value,
+                              }))
+                            }
+                            placeholder="SCI-2026"
+                          />
+                        </Field>
+                        <Field label="Programme name">
+                          <input
+                            className={styles.input}
+                            value={programmeForm.name}
+                            onChange={(event) =>
+                              setProgrammeForm((current) => ({
+                                ...current,
+                                name: event.target.value,
+                              }))
+                            }
+                            placeholder="General Science"
+                          />
+                        </Field>
+                      </div>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Level">
+                          <input
+                            className={styles.input}
+                            value={programmeForm.level}
+                            onChange={(event) =>
+                              setProgrammeForm((current) => ({
+                                ...current,
+                                level: event.target.value,
+                              }))
+                            }
+                            placeholder="secondary"
+                          />
+                        </Field>
+                        <Field label="Capacity">
+                          <input
+                            type="number"
+                            min={1}
+                            className={styles.input}
+                            value={programmeForm.capacity}
+                            onChange={(event) =>
+                              setProgrammeForm((current) => ({
+                                ...current,
+                                capacity: event.target.value,
+                              }))
+                            }
+                            placeholder="120"
+                          />
+                        </Field>
+                      </div>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Active state">
+                          <select
+                            className={styles.select}
+                            value={programmeForm.active ? 'true' : 'false'}
+                            onChange={(event) =>
+                              setProgrammeForm((current) => ({
+                                ...current,
+                                active: event.target.value === 'true',
+                              }))
+                            }
+                          >
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                          </select>
+                        </Field>
+                        <div />
+                      </div>
+                      <div className={styles.buttonRow}>
+                        <button
+                          className={styles.buttonSecondary}
+                          type="button"
+                          onClick={handleProgrammeFormReset}
+                          disabled={busy}
+                        >
+                          Cancel editing
+                        </button>
+                        <button className={styles.button} type="submit" disabled={busy}>
+                          {busy ? 'Saving changes...' : 'Save changes'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+                  <div className={styles.softDivider} />
                   <div className={styles.workflowList}>
                     {workspace.programmes.items.map((programme) => (
                       <div key={programme.id} className={styles.workflowItem}>
@@ -1880,8 +2293,18 @@ export function AdmissionWorkspace() {
                         <div className={styles.workflowDetail}>
                           <strong>{programme.name}</strong>
                           <span>
-                            {programme.level} · Capacity {programme.capacity}
+                            {programme.level} · Capacity {programme.capacity} · {programme.active ? 'Active' : 'Inactive'}
                           </span>
+                        </div>
+                        <div className={styles.workflowActions}>
+                          <button
+                            className={styles.buttonSecondarySmall}
+                            type="button"
+                            onClick={() => handleProgrammeEdit(programme)}
+                            disabled={busy}
+                          >
+                            Edit
+                          </button>
                         </div>
                       </div>
                     ))}

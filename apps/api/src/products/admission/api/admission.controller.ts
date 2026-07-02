@@ -25,6 +25,8 @@ import type { RejectApplicationDto } from './dto/reject-application.dto';
 import type { ScheduleInterviewDto } from './dto/schedule-interview.dto';
 import type { UpdateApplicantDto } from './dto/update-applicant.dto';
 import type { UpdateApplicationDto } from './dto/update-application.dto';
+import type { UpdateCycleDto } from './dto/update-cycle.dto';
+import type { UpdateProgrammeDto } from './dto/update-programme.dto';
 
 type RequestWithContext = Request & {
   platformContext?: {
@@ -54,10 +56,30 @@ export class AdmissionController {
     return this.admissionService.listCycles(this.tenantId(request), query);
   }
 
+  @Patch('cycles/:id')
+  @AccessScope({ productCode: 'admission', permission: 'admission.write' })
+  @ApiOperation({ summary: 'Update a cycle' })
+  @ApiOkResponse({ type: AdmissionCycleDto })
+  updateCycle(@Req() request: RequestWithContext, @Param('id') id: string, @Body() dto: UpdateCycleDto) {
+    return this.admissionService.updateCycle(this.tenantId(request), this.actorUserId(request), id, dto);
+  }
+
   @Get('programmes')
   @ApiOkResponse({ type: AdmissionProgrammeDto, isArray: true })
   listProgrammes(@Req() request: RequestWithContext, @Query() query: ListAdmissionQueryDto) {
     return this.admissionService.listProgrammes(this.tenantId(request), query);
+  }
+
+  @Patch('programmes/:id')
+  @AccessScope({ productCode: 'admission', permission: 'admission.write' })
+  @ApiOperation({ summary: 'Update a programme' })
+  @ApiOkResponse({ type: AdmissionProgrammeDto })
+  updateProgramme(
+    @Req() request: RequestWithContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateProgrammeDto,
+  ) {
+    return this.admissionService.updateProgramme(this.tenantId(request), this.actorUserId(request), id, dto);
   }
 
   @Get('applicants')

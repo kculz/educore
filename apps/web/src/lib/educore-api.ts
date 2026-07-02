@@ -5,6 +5,8 @@ export const API_BASE_URL = ensureTrailingSlash(process.env.NEXT_PUBLIC_API_BASE
 export const ADMISSION_PRODUCT_CODE = 'admission';
 export const PLATFORM_PRODUCT_CODE = 'platform';
 
+export type AdmissionCycleStatus = 'draft' | 'open' | 'closed' | 'archived';
+
 export type AdmissionGender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
 export type AdmissionApplicantStatus =
@@ -121,7 +123,7 @@ export interface AdmissionCycle {
   name: string;
   startDate: string;
   endDate: string | null;
-  status: string;
+  status: AdmissionCycleStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -241,6 +243,22 @@ export interface UpdateApplicationInput {
   submissionNotes?: string | null;
 }
 
+export interface UpdateCycleInput {
+  academicYear?: string;
+  name?: string;
+  startDate?: string;
+  endDate?: string | null;
+  status?: AdmissionCycleStatus;
+}
+
+export interface UpdateProgrammeInput {
+  code?: string;
+  name?: string;
+  level?: string;
+  capacity?: number;
+  active?: boolean;
+}
+
 export interface ScheduleInterviewInput {
   scheduledAt: string;
   location: string;
@@ -339,6 +357,34 @@ export async function listAdmissionProgrammes(session: AdmissionSession, query: 
     token: session.accessToken,
     productCode: ADMISSION_PRODUCT_CODE,
     query,
+  });
+}
+
+export async function updateAdmissionCycle(
+  session: AdmissionSession,
+  cycleId: string,
+  input: UpdateCycleInput,
+) {
+  return requestJson<AdmissionCycle>(`/admission/cycles/${cycleId}`, {
+    method: 'PATCH',
+    tenantId: session.tenantId,
+    token: session.accessToken,
+    productCode: ADMISSION_PRODUCT_CODE,
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateAdmissionProgramme(
+  session: AdmissionSession,
+  programmeId: string,
+  input: UpdateProgrammeInput,
+) {
+  return requestJson<AdmissionProgramme>(`/admission/programmes/${programmeId}`, {
+    method: 'PATCH',
+    tenantId: session.tenantId,
+    token: session.accessToken,
+    productCode: ADMISSION_PRODUCT_CODE,
+    body: JSON.stringify(input),
   });
 }
 

@@ -19,6 +19,8 @@ import type { RejectApplicationDto } from '../api/dto/reject-application.dto';
 import type { ScheduleInterviewDto } from '../api/dto/schedule-interview.dto';
 import type { UpdateApplicantDto } from '../api/dto/update-applicant.dto';
 import type { UpdateApplicationDto } from '../api/dto/update-application.dto';
+import type { UpdateCycleDto } from '../api/dto/update-cycle.dto';
+import type { UpdateProgrammeDto } from '../api/dto/update-programme.dto';
 
 function now() {
   return new Date().toISOString();
@@ -94,6 +96,39 @@ export class AdmissionStoreService {
   listProgrammes(tenantId: string) {
     this.ensureTenantSeed(tenantId);
     return this.collectByTenant(this.programmes, tenantId);
+  }
+
+  updateCycle(tenantId: string, cycleId: string, input: UpdateCycleDto) {
+    this.ensureTenantSeed(tenantId);
+    const cycle = this.mustGetCycle(tenantId, cycleId);
+
+    if (input.academicYear !== undefined) cycle.academicYear = input.academicYear;
+    if (input.name !== undefined) cycle.name = input.name;
+    if (input.startDate !== undefined) cycle.startDate = input.startDate;
+    if (input.endDate !== undefined) cycle.endDate = input.endDate ?? null;
+    if (input.status !== undefined) cycle.status = input.status;
+
+    cycle.updatedAt = now();
+    this.cycles.set(cycle.id, cycle);
+    return clone(cycle);
+  }
+
+  updateProgramme(tenantId: string, programmeId: string, input: UpdateProgrammeDto) {
+    this.ensureTenantSeed(tenantId);
+    const programme = this.mustGetProgramme(tenantId, programmeId);
+
+    if (input.code !== undefined && input.code !== programme.code) {
+      this.assertProgrammeCodeAvailable(tenantId, input.code, programmeId);
+    }
+    if (input.code !== undefined) programme.code = input.code;
+    if (input.name !== undefined) programme.name = input.name;
+    if (input.level !== undefined) programme.level = input.level;
+    if (input.capacity !== undefined) programme.capacity = input.capacity;
+    if (input.active !== undefined) programme.active = input.active;
+
+    programme.updatedAt = now();
+    this.programmes.set(programme.id, programme);
+    return clone(programme);
   }
 
   listApplicants(tenantId: string) {
@@ -549,6 +584,25 @@ export class AdmissionStoreService {
 
     if (duplicate) {
       throw new ConflictException('Application already exists for this applicant, programme, and cycle');
+    }
+  }
+
+  private assertProgrammeCodeAvailable(tenantId: string, code: string, programmeId?: string) {
+    const normalized = code.toLowerCase();
+    const duplicate = Array.from(this.programmes.values()).find((candidate) => {
+      if (candidate.tenantId !== tenantId) {
+        return false;
+      }
+
+      if (programmeId && candidate.id === programmeId) {
+        return false;
+      }
+
+      return candidate.code.toLowerCase() === normalized;
+    });
+
+    if (duplicate) {
+      throw new ConflictException(`Programme already exists with code: ${code}`);
     }
   }
 

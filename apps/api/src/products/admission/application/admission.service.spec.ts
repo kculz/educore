@@ -32,6 +32,36 @@ describe('AdmissionService', () => {
     expect(programmes.items.length).toBeGreaterThan(0);
   });
 
+  it('updates cycles and programmes', () => {
+    const { platformState, service } = createService();
+    const tenant = platformState.getTenantBySlug('miami-academy');
+    const cycle = service.listCycles(tenant!.id).items[0];
+    const programme = service.listProgrammes(tenant!.id).items[0];
+
+    expect(cycle).toBeDefined();
+    expect(programme).toBeDefined();
+
+    const updatedCycle = service.updateCycle(tenant!.id, null, cycle!.id, {
+      name: 'Updated Admission Cycle',
+      status: 'closed',
+    });
+    const updatedProgramme = service.updateProgramme(tenant!.id, null, programme!.id, {
+      code: 'SCI-UPDATED',
+      name: 'Updated Science',
+      level: 'tertiary',
+      capacity: 150,
+      active: false,
+    });
+
+    expect(updatedCycle.name).toBe('Updated Admission Cycle');
+    expect(updatedCycle.status).toBe('closed');
+    expect(updatedProgramme.code).toBe('SCI-UPDATED');
+    expect(updatedProgramme.name).toBe('Updated Science');
+    expect(updatedProgramme.level).toBe('tertiary');
+    expect(updatedProgramme.capacity).toBe(150);
+    expect(updatedProgramme.active).toBe(false);
+  });
+
   it('updates a draft application before submission', () => {
     const { platformState, service } = createService();
     const tenant = platformState.getTenantBySlug('miami-academy');

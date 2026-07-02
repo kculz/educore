@@ -17,6 +17,8 @@ import type { RejectApplicationDto } from '../api/dto/reject-application.dto';
 import type { ScheduleInterviewDto } from '../api/dto/schedule-interview.dto';
 import type { UpdateApplicantDto } from '../api/dto/update-applicant.dto';
 import type { UpdateApplicationDto } from '../api/dto/update-application.dto';
+import type { UpdateCycleDto } from '../api/dto/update-cycle.dto';
+import type { UpdateProgrammeDto } from '../api/dto/update-programme.dto';
 
 @Injectable()
 export class AdmissionService {
@@ -49,6 +51,25 @@ export class AdmissionService {
       ['name', 'code', 'level'],
       'createdAt',
     );
+  }
+
+  updateCycle(tenantId: string, actorUserId: string | null, cycleId: string, dto: UpdateCycleDto) {
+    const cycle = this.store.updateCycle(tenantId, cycleId, dto);
+    this.recordAudit(tenantId, actorUserId, 'admission.cycle.updated', 'admission-cycle', {
+      cycleId: cycle.id,
+      status: cycle.status,
+    });
+    return this.store.getCycle(tenantId, cycle.id);
+  }
+
+  updateProgramme(tenantId: string, actorUserId: string | null, programmeId: string, dto: UpdateProgrammeDto) {
+    const programme = this.store.updateProgramme(tenantId, programmeId, dto);
+    this.recordAudit(tenantId, actorUserId, 'admission.programme.updated', 'admission-programme', {
+      programmeId: programme.id,
+      code: programme.code,
+      active: programme.active,
+    });
+    return this.store.getProgramme(tenantId, programme.id);
   }
 
   listApplicants(tenantId: string, query: ListAdmissionQueryDto = {}) {

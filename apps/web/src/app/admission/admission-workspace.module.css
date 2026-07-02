@@ -567,6 +567,14 @@
   min-width: 0;
 }
 
+.workflowActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .cellMeta {
   margin-top: 4px;
   font-size: 0.9rem;
@@ -694,6 +702,7 @@
 
   .buttonRow > *,
   .actionCluster > *,
+  .workflowActions > *,
   .toolbar > * {
     flex: 1 1 auto;
   }
