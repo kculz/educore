@@ -45,7 +45,7 @@ export class PlatformAccessGuard implements CanActivate {
     }
 
     const productCode = scope.productCode ?? resolveProductCode(request);
-    const tenant = this.platformState.getTenantById(tenantId);
+    const tenant = this.platformState.getTenantById(tenantId) ?? this.platformState.getTenantBySlug(tenantId);
     if (!tenant) {
       throw new UnauthorizedException('Unknown tenant');
     }
@@ -54,15 +54,15 @@ export class PlatformAccessGuard implements CanActivate {
       throw new ForbiddenException('Tenant is not active');
     }
 
-    if (!this.platformState.isProductEnabled(tenantId, productCode)) {
+    if (!this.platformState.isProductEnabled(tenant.id, productCode)) {
       throw new ForbiddenException(`Product ${productCode} is not enabled for this tenant`);
     }
 
-    if (!this.platformState.isLicenseEnabled(tenantId, productCode)) {
+    if (!this.platformState.isLicenseEnabled(tenant.id, productCode)) {
       throw new ForbiddenException(`Product ${productCode} is not licensed for this tenant`);
     }
 
-    if (scope.featureFlag && !this.platformState.getFeatureFlag(tenantId, productCode, scope.featureFlag)?.enabled) {
+    if (scope.featureFlag && !this.platformState.getFeatureFlag(tenant.id, productCode, scope.featureFlag)?.enabled) {
       throw new ForbiddenException(`Feature flag ${scope.featureFlag} is disabled`);
     }
 

@@ -1,4 +1,4 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 import { PlatformConfigService } from '../../config/platform-config.service';
@@ -9,6 +9,7 @@ import type {
   PlatformUser,
 } from '../platform-state/platform-state.types';
 import { verifyPassword } from './password.util';
+import { generateBase32Secret, generateTotpUri, verifyTotpCode, generateBackupCodes } from './totp.util';
 import { randomUUID } from 'node:crypto';
 
 function parseDurationToMs(value: string) {
@@ -57,6 +58,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.mfaEnabled) {
+      return {
+        mfaRequired: true,
+        userId: user.id,
+        tenantId: user.tenantId,
+        email: user.email,
+      };
+    }
+
     const tokenPair = await this.issueTokenPair(user);
     this.platformState.markUserLogin(user.id);
     this.platformState.recordAudit({
@@ -67,9 +77,106 @@ export class AuthService {
       metadata: { email: user.email },
     });
     return {
+      mfaRequired: false,
       ...tokenPair,
       user: this.serializeUser(user.id),
     };
+  }
+
+  async verifyMfaLogin(input: { tenantId: string; userId: string; code: string }) {
+    const user = this.platformState.getUserById(input.userId);
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('Invalid MFA session');
+    }
+
+    let verified = false;
+    if (user.mfaSecret && verifyTotpCode(user.mfaSecret, input.code)) {
+      verified = true;
+    } else if (user.backupCodes && user.backupCodes.includes(input.code.trim().toUpperCase())) {
+      verified = true;
+    }
+
+    if (!verified) {
+      throw new UnauthorizedException('Invalid Authenticator OTP or Backup Code');
+    }
+
+    const tokenPair = await this.issueTokenPair(user);
+    this.platformState.markUserLogin(user.id);
+    this.platformState.recordAudit({
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'auth.mfa.verified',
+      resource: 'auth',
+      metadata: { email: user.email },
+    });
+    return {
+      ...tokenPair,
+      user: this.serializeUser(user.id),
+    };
+  }
+
+  async setupTotp(userId: string) {
+    const user = this.platformState.getUserById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const secret = generateBase32Secret(20);
+    const uri = generateTotpUri(secret, user.email, 'EduCore SaaS');
+    const backupCodes = generateBackupCodes(8);
+
+    // Save temporary secret
+    user.mfaSecret = secret;
+    user.backupCodes = backupCodes;
+
+    return {
+      secret,
+      qrUri: uri,
+      backupCodes,
+    };
+  }
+
+  async enableTotp(userId: string, code: string) {
+    const user = this.platformState.getUserById(userId);
+    if (!user || !user.mfaSecret) {
+      throw new BadRequestException('MFA setup not initialized');
+    }
+
+    const valid = verifyTotpCode(user.mfaSecret, code);
+    if (!valid) {
+      throw new BadRequestException('Invalid Authenticator Code. Please scan the QR code and try again.');
+    }
+
+    user.mfaEnabled = true;
+    this.platformState.recordAudit({
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'auth.mfa.enabled',
+      resource: 'auth',
+      metadata: { email: user.email },
+    });
+
+    return {
+      success: true,
+      message: 'Google / Microsoft Authenticator app successfully linked to your account.',
+    };
+  }
+
+  async disableTotp(userId: string) {
+    const user = this.platformState.getUserById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    user.mfaEnabled = false;
+    user.mfaSecret = null;
+    user.backupCodes = [];
+
+    this.platformState.recordAudit({
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: 'auth.mfa.disabled',
+      resource: 'auth',
+      metadata: { email: user.email },
+    });
+
+    return { success: true };
   }
 
   async refresh(input: { tenantId: string; refreshToken: string }) {
@@ -180,6 +287,7 @@ export class AuthService {
       status: user.status,
       roleIds,
       permissions: [...permissions],
+      mfaEnabled: !!user.mfaEnabled,
       lastLoginAt: user.lastLoginAt,
     };
   }

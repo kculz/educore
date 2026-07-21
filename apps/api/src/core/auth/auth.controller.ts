@@ -33,6 +33,38 @@ export class AuthController {
     });
   }
 
+  @Post('mfa/verify')
+  @PublicRoute()
+  @AccessScope({ productCode: 'platform' })
+  verifyMfaLogin(@CurrentTenantId() tenantId: string | null, @Body() dto: { userId: string; code: string }) {
+    return this.authService.verifyMfaLogin({
+      tenantId: tenantId ?? '',
+      userId: dto.userId,
+      code: dto.code,
+    });
+  }
+
+  @Post('mfa/setup')
+  @ApiBearerAuth()
+  @AccessScope({ productCode: 'platform', permission: 'auth.me' })
+  setupMfa(@CurrentUserId() userId: string | null) {
+    return this.authService.setupTotp(userId ?? '');
+  }
+
+  @Post('mfa/enable')
+  @ApiBearerAuth()
+  @AccessScope({ productCode: 'platform', permission: 'auth.me' })
+  enableMfa(@CurrentUserId() userId: string | null, @Body() dto: { code: string }) {
+    return this.authService.enableTotp(userId ?? '', dto.code);
+  }
+
+  @Post('mfa/disable')
+  @ApiBearerAuth()
+  @AccessScope({ productCode: 'platform', permission: 'auth.me' })
+  disableMfa(@CurrentUserId() userId: string | null) {
+    return this.authService.disableTotp(userId ?? '');
+  }
+
   @Post('refresh')
   @PublicRoute()
   @AccessScope({ productCode: 'platform' })
