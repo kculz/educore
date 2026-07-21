@@ -4,6 +4,7 @@ import nodemailer, { Transporter } from 'nodemailer';
 import { PlatformConfigService } from '../../config/platform-config.service';
 import { EmailTemplateKey, EmailTemplateService } from './email-template.service';
 import { PlatformStateService } from '../platform-state/platform-state.service';
+import { NotificationProviderService } from '../../shared/notifications/notification-provider.service';
 
 @Injectable()
 export class EmailService {
@@ -13,6 +14,7 @@ export class EmailService {
     private readonly config: PlatformConfigService,
     private readonly templates: EmailTemplateService,
     private readonly platformState: PlatformStateService,
+    private readonly notificationProvider: NotificationProviderService,
   ) {
     this.transport = this.createTransport();
   }
@@ -33,12 +35,20 @@ export class EmailService {
     };
 
     const info = await this.transport.sendMail(message);
-    const notification = this.platformState.createNotification({
+    const notificationEnvelope = this.notificationProvider.createEmailNotification({
       tenantId: input.tenantId,
       recipient: input.to,
       subject: rendered.subject,
       template: input.template,
       payload: input.payload,
+    });
+    const notification = this.platformState.createNotification({
+      tenantId: notificationEnvelope.tenantId,
+      recipient: notificationEnvelope.recipient,
+      subject: notificationEnvelope.subject,
+      template: notificationEnvelope.template,
+      payload: notificationEnvelope.payload,
+      channel: notificationEnvelope.channel,
     });
     this.platformState.markNotificationSent(notification.id);
     return {
@@ -73,4 +83,3 @@ export class EmailService {
     });
   }
 }
-

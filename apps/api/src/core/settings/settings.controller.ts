@@ -1,38 +1,32 @@
-import { Body, Controller, Get, Param, Put, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { Body, Controller, Get, Inject, Param, Put } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 
 import { AccessScope } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId } from '../platform-access/platform-request.decorator';
 import { UpdateSettingDto } from './dto/update-setting.dto';
 import { SettingsService } from './settings.service';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-  };
-};
 
 @ApiTags('Settings')
 @ApiBearerAuth()
 @Controller({ path: 'settings', version: '1' })
 @AccessScope({ productCode: 'platform', permission: 'settings.read' })
 export class SettingsController {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(@Inject(SettingsService) private readonly settingsService: SettingsService) {}
 
   @Get()
-  list(@Req() request: RequestWithContext) {
-    return this.settingsService.list(request.platformContext?.tenantId);
+  list(@CurrentTenantId() tenantId: string | null) {
+    return this.settingsService.list(tenantId ?? undefined);
   }
 
   @Get(':key')
-  get(@Req() request: RequestWithContext, @Param('key') key: string) {
-    return this.settingsService.get(key, request.platformContext?.tenantId ?? null);
+  get(@CurrentTenantId() tenantId: string | null, @Param('key') key: string) {
+    return this.settingsService.get(key, tenantId ?? null);
   }
 
   @Put(':key')
   @AccessScope({ productCode: 'platform', permission: 'settings.write' })
-  set(@Req() request: RequestWithContext, @Param('key') key: string, @Body() dto: UpdateSettingDto) {
-    return this.settingsService.set(key, request.platformContext?.tenantId ?? null, dto);
+  @ApiBody({ type: UpdateSettingDto })
+  set(@CurrentTenantId() tenantId: string | null, @Param('key') key: string, @Body() dto: UpdateSettingDto) {
+    return this.settingsService.set(key, tenantId ?? null, dto);
   }
 }
-

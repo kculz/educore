@@ -1,13 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBase64, IsString } from 'class-validator';
+import { IsBase64 } from 'class-validator';
+
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class StoreFileDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   filename!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   contentType!: string;
 
   @ApiProperty({
@@ -16,4 +18,3 @@ export class StoreFileDto {
   @IsBase64()
   base64!: string;
 }
-

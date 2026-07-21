@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class UpdateSettingDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   value!: string;
 }
-

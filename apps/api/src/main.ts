@@ -2,13 +2,17 @@ import 'reflect-metadata';
 
 import compression from 'compression';
 import helmet from 'helmet';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 import { PlatformConfigService } from './config/platform-config.service';
 import { PlatformLoggerService } from './core/logging/platform-logger.service';
+import { RequestTimingInterceptor } from './shared/interceptors/request-timing.interceptor';
+import { requestIdMiddleware } from './shared/middlewares/request-id.middleware';
+import { PlatformValidationService } from './shared/validation/platform-validation.service';
+import { PlatformExceptionFilter } from './shared/errors/platform-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -16,6 +20,8 @@ async function bootstrap() {
   });
   const platformConfig = app.get(PlatformConfigService);
   const logger = app.get(PlatformLoggerService);
+  const validation = app.get(PlatformValidationService);
+  const exceptionFilter = app.get(PlatformExceptionFilter);
 
   app.useLogger(logger);
   app.enableShutdownHooks();
@@ -23,6 +29,7 @@ async function bootstrap() {
     origin: true,
     credentials: true,
   });
+  app.use(requestIdMiddleware);
 
   app.setGlobalPrefix('api');
   app.enableVersioning({
@@ -31,13 +38,9 @@ async function bootstrap() {
   });
   app.use(helmet());
   app.use(compression());
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidUnknownValues: false,
-    }),
-  );
+  app.useGlobalPipes(validation.createPipe());
+  app.useGlobalInterceptors(app.get(RequestTimingInterceptor));
+  app.useGlobalFilters(exceptionFilter);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle(platformConfig.appName)

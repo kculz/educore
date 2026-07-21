@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { Body, Controller, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 
 import { AccessScope } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId } from '../platform-access/platform-request.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
@@ -12,11 +12,7 @@ import { UsersService } from './users.service';
 @Controller({ path: 'users', version: '1' })
 @AccessScope({ productCode: 'platform', permission: 'users.read' })
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
-
-  private getTenantId(request: Request & { platformContext?: { tenantId: string } }) {
-    return request.platformContext?.tenantId ?? request.header('x-tenant-id') ?? '';
-  }
+  constructor(@Inject(UsersService) private readonly usersService: UsersService) {}
 
   @Get()
   list(@Query('tenantId') tenantId?: string) {
@@ -30,12 +26,14 @@ export class UsersController {
 
   @Post()
   @AccessScope({ productCode: 'platform', permission: 'users.write' })
-  create(@Req() request: Request & { platformContext?: { tenantId: string } }, @Body() dto: CreateUserDto) {
-    return this.usersService.create(this.getTenantId(request), dto);
+  @ApiBody({ type: CreateUserDto })
+  create(@CurrentTenantId() tenantId: string | null, @Body() dto: CreateUserDto) {
+    return this.usersService.create(tenantId ?? '', dto);
   }
 
   @Patch(':id')
   @AccessScope({ productCode: 'platform', permission: 'users.write' })
+  @ApiBody({ type: UpdateUserDto })
   update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
   }

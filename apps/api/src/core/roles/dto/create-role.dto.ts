@@ -1,14 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsString, MinLength } from 'class-validator';
+import { IsArray, MinLength } from 'class-validator';
+
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class CreateRoleDto {
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   code!: string;
 
   @ApiProperty()
-  @IsString()
+  @IsTrimmedString()
   @MinLength(2)
   name!: string;
 

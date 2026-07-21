@@ -1,10 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsOptional } from 'class-validator';
+
+import { IsTrimmedString } from '../../../shared/validators/trimmed-string.validator';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsTrimmedString()
   fullName?: string;
 
   @ApiPropertyOptional({ enum: ['active', 'invited', 'disabled'] })
@@ -17,4 +19,3 @@ export class UpdateUserDto {
   @IsArray()
   roleIds?: string[];
 }
-

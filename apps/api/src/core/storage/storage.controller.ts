@@ -1,23 +1,17 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 
 import { AccessScope } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId } from '../platform-access/platform-request.decorator';
 import { StoreFileDto } from './dto/store-file.dto';
 import { StorageService } from './storage.service';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-  };
-};
 
 @ApiTags('Storage')
 @ApiBearerAuth()
 @Controller({ path: 'storage', version: '1' })
 @AccessScope({ productCode: 'platform', permission: 'storage.read' })
 export class StorageController {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(@Inject(StorageService) private readonly storageService: StorageService) {}
 
   @Get('providers')
   listProviders() {
@@ -25,8 +19,8 @@ export class StorageController {
   }
 
   @Get()
-  list(@Req() request: RequestWithContext) {
-    return this.storageService.listObjects(request.platformContext?.tenantId);
+  list(@CurrentTenantId() tenantId: string | null) {
+    return this.storageService.listObjects(tenantId ?? undefined);
   }
 
   @Get(':id')
@@ -36,13 +30,13 @@ export class StorageController {
 
   @Post()
   @AccessScope({ productCode: 'platform', permission: 'storage.write' })
-  save(@Req() request: RequestWithContext, @Body() dto: StoreFileDto) {
+  @ApiBody({ type: StoreFileDto })
+  save(@CurrentTenantId() tenantId: string | null, @Body() dto: StoreFileDto) {
     return this.storageService.saveFile({
-      tenantId: request.platformContext?.tenantId ?? '',
+      tenantId: tenantId ?? '',
       filename: dto.filename,
       contentType: dto.contentType,
       buffer: Buffer.from(dto.base64, 'base64'),
     });
   }
 }
-

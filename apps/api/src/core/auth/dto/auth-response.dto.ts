@@ -39,3 +39,20 @@ export class AuthResponseDto {
   @ApiProperty({ type: AuthUserDto })
   user!: AuthUserDto;
 }
+
+export class AuthTenantDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ type: [String] })
+  enabledProducts!: string[];
+
+  @ApiProperty()
+  status!: 'active' | 'suspended';
+}

@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 
 import { hashPassword } from '../auth/password.util';
 import type {
-  JwtRefreshPayload,
   JwtUserPayload,
   PlatformAuditLog,
   PlatformFeatureFlag,
@@ -68,8 +67,14 @@ export class PlatformStateService {
     return Array.from(this.tenants.values()).map(clone);
   }
 
+  resolveTenantId(idOrSlug: string | null | undefined): string | null {
+    if (!idOrSlug) return null;
+    const tenant = this.tenants.get(idOrSlug) ?? Array.from(this.tenants.values()).find((t) => t.slug === idOrSlug);
+    return tenant ? tenant.id : idOrSlug;
+  }
+
   getTenantById(id: string) {
-    const tenant = this.tenants.get(id);
+    const tenant = this.tenants.get(id) ?? Array.from(this.tenants.values()).find((t) => t.slug === id);
     return tenant ? clone(tenant) : null;
   }
 
@@ -107,12 +112,13 @@ export class PlatformStateService {
   }
 
   updateTenantProducts(tenantId: string, products: string[]) {
-    const tenant = this.mustGetTenant(tenantId);
+    const resolvedTenantId = this.resolveTenantId(tenantId) ?? tenantId;
+    const tenant = this.mustGetTenant(resolvedTenantId);
     tenant.enabledProducts = Array.from(new Set(['platform', ...products]));
     tenant.updatedAt = now();
-    this.tenants.set(tenantId, tenant);
+    this.tenants.set(resolvedTenantId, tenant);
     this.recordAudit({
-      tenantId,
+      tenantId: resolvedTenantId,
       userId: null,
       action: 'tenant.products.updated',
       resource: 'tenant',
@@ -122,8 +128,9 @@ export class PlatformStateService {
   }
 
   listUsers(tenantId?: string) {
+    const resolvedTenantId = tenantId ? this.resolveTenantId(tenantId) : undefined;
     return Array.from(this.users.values())
-      .filter((user) => (tenantId ? user.tenantId === tenantId : true))
+      .filter((user) => (resolvedTenantId ? user.tenantId === resolvedTenantId : true))
       .map(clone);
   }
 
@@ -133,9 +140,10 @@ export class PlatformStateService {
   }
 
   getUserByEmail(tenantId: string, email: string) {
+    const resolvedTenantId = this.resolveTenantId(tenantId) ?? tenantId;
     const normalizedEmail = email.toLowerCase();
     const user = Array.from(this.users.values()).find(
-      (candidate) => candidate.tenantId === tenantId && candidate.email === normalizedEmail,
+      (candidate) => candidate.tenantId === resolvedTenantId && candidate.email === normalizedEmail,
     );
     return user ? clone(user) : null;
   }
@@ -610,6 +618,12 @@ export class PlatformStateService {
       { key: 'settings.write', description: 'Write settings', module: 'settings' },
       { key: 'dashboard.read', description: 'Read dashboard metrics', module: 'dashboard' },
       { key: 'reports.read', description: 'Read reports', module: 'reporting' },
+      { key: 'admission.read', description: 'Read admission data', module: 'admission' },
+      { key: 'admission.write', description: 'Write admission data', module: 'admission' },
+      { key: 'fees.read', description: 'Read fees data', module: 'fees' },
+      { key: 'fees.write', description: 'Write fees data', module: 'fees' },
+      { key: 'procurement.read', description: 'Read procurement data', module: 'procurement' },
+      { key: 'procurement.write', description: 'Write procurement data', module: 'procurement' },
       { key: 'queues.read', description: 'Read queues', module: 'queues' },
       { key: 'queues.write', description: 'Write queues', module: 'queues' },
       { key: 'emails.write', description: 'Send emails', module: 'email' },
@@ -660,6 +674,12 @@ export class PlatformStateService {
         'settings.write',
         'dashboard.read',
         'reports.read',
+        'admission.read',
+        'admission.write',
+        'fees.read',
+        'fees.write',
+        'procurement.read',
+        'procurement.write',
         'queues.read',
         'emails.write',
         'health.read',
@@ -680,12 +700,12 @@ export class PlatformStateService {
       name: 'ABC Manufacturing',
     });
 
-    this.updateTenantProducts(miami.id, ['platform', 'admission', 'procurement']);
-    this.updateTenantProducts(eastern.id, ['platform', 'admission', 'procurement']);
+    this.updateTenantProducts(miami.id, ['platform', 'admission', 'fees', 'procurement']);
+    this.updateTenantProducts(eastern.id, ['platform', 'admission', 'fees', 'procurement']);
     this.updateTenantProducts(abc.id, ['platform', 'procurement']);
 
     this.setLicense(miami.id, 'admission', true, null);
-    this.setLicense(miami.id, 'fees', false, null);
+    this.setLicense(miami.id, 'fees', true, null);
     this.setLicense(miami.id, 'procurement', true, null);
 
     this.setLicense(eastern.id, 'admission', true, null);

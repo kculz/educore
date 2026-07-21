@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 
-import { PlatformConfigService } from '../../config/platform-config.service';
 import { PlatformStateService } from '../platform-state/platform-state.service';
+import { StorageProviderService } from '../../shared/storage/storage-provider.service';
 
 export interface StoredFileInput {
   tenantId: string;
@@ -15,7 +13,7 @@ export interface StoredFileInput {
 @Injectable()
 export class StorageService {
   constructor(
-    private readonly config: PlatformConfigService,
+    private readonly storageProvider: StorageProviderService,
     private readonly platformState: PlatformStateService,
   ) {}
 
@@ -31,19 +29,14 @@ export class StorageService {
   }
 
   saveFile(input: StoredFileInput) {
-    const storageRoot = this.config.storageRoot;
-    const tenantFolder = join(storageRoot, input.tenantId);
-    const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const filePath = join(tenantFolder, `${Date.now()}-${safeFilename}`);
-    mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(filePath, input.buffer);
+    const stored = this.storageProvider.save(input);
 
     return this.platformState.saveStorageObject({
       tenantId: input.tenantId,
       filename: input.filename,
       contentType: input.contentType,
       size: input.buffer.byteLength,
-      path: filePath,
+      path: stored.path,
     });
   }
 
