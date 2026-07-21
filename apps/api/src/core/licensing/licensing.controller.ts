@@ -1,37 +1,31 @@
-import { Body, Controller, Get, Param, Patch, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { Body, Controller, Get, Inject, Param, Patch } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 
 import { AccessScope } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId } from '../platform-access/platform-request.decorator';
 import { UpdateLicenseDto } from './dto/update-license.dto';
 import { LicensingService } from './licensing.service';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-  };
-};
 
 @ApiTags('Licensing')
 @ApiBearerAuth()
 @Controller({ path: 'licenses', version: '1' })
 @AccessScope({ productCode: 'platform', permission: 'licenses.read' })
 export class LicensingController {
-  constructor(private readonly licensingService: LicensingService) {}
+  constructor(@Inject(LicensingService) private readonly licensingService: LicensingService) {}
 
   @Get()
-  list(@Req() request: RequestWithContext) {
-    return this.licensingService.list(request.platformContext?.tenantId ?? '');
+  list(@CurrentTenantId() tenantId: string | null) {
+    return this.licensingService.list(tenantId ?? '');
   }
 
   @Patch(':productCode')
   @AccessScope({ productCode: 'platform', permission: 'licenses.write' })
+  @ApiBody({ type: UpdateLicenseDto })
   update(
-    @Req() request: RequestWithContext,
+    @CurrentTenantId() tenantId: string | null,
     @Param('productCode') productCode: string,
     @Body() dto: UpdateLicenseDto,
   ) {
-    return this.licensingService.update(request.platformContext?.tenantId ?? '', productCode, dto);
+    return this.licensingService.update(tenantId ?? '', productCode, dto);
   }
 }
-

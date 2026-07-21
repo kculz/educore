@@ -53,6 +53,9 @@ export interface PlatformUser {
   lastLoginAt: string | null;
   refreshTokenJti: string | null;
   refreshTokenExpiresAt: string | null;
+  mfaEnabled?: boolean;
+  mfaSecret?: string | null;
+  backupCodes?: string[];
 }
 
 export interface PlatformFeatureFlag {

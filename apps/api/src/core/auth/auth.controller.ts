@@ -1,47 +1,78 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Inject, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
-import { AccessScope, PublicRoute } from '../platform-access/platform-access.decorator';
-import { AuthResponseDto, AuthUserDto } from './dto/auth-response.dto';
+import { AccessScope, AnonymousRoute, PublicRoute } from '../platform-access/platform-access.decorator';
+import { CurrentTenantId, CurrentUserId } from '../platform-access/platform-request.decorator';
+import { AuthResponseDto, AuthTenantDto, AuthUserDto } from './dto/auth-response.dto';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import type { Request } from 'express';
-
-type RequestWithContext = Request & {
-  platformContext?: {
-    tenantId: string;
-    productCode: string;
-  };
-  user?: {
-    sub: string;
-  };
-};
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(@Inject(AuthService) private readonly authService: AuthService) {}
+
+  @Get('tenants')
+  @AnonymousRoute()
+  @ApiOkResponse({ type: AuthTenantDto, isArray: true })
+  tenants() {
+    return this.authService.listTenants();
+  }
 
   @Post('login')
   @PublicRoute()
   @AccessScope({ productCode: 'platform' })
+  @ApiBody({ type: LoginDto })
   @ApiOkResponse({ type: AuthResponseDto })
-  login(@Req() request: RequestWithContext, @Body() dto: LoginDto) {
+  login(@CurrentTenantId() tenantId: string | null, @Body() dto: LoginDto) {
     return this.authService.login({
-      tenantId: request.platformContext?.tenantId ?? request.header('x-tenant-id') ?? '',
+      tenantId: tenantId ?? '',
       email: dto.email,
       password: dto.password,
     });
   }
 
+  @Post('mfa/verify')
+  @PublicRoute()
+  @AccessScope({ productCode: 'platform' })
+  verifyMfaLogin(@CurrentTenantId() tenantId: string | null, @Body() dto: { userId: string; code: string }) {
+    return this.authService.verifyMfaLogin({
+      tenantId: tenantId ?? '',
+      userId: dto.userId,
+      code: dto.code,
+    });
+  }
+
+  @Post('mfa/setup')
+  @ApiBearerAuth()
+  @AccessScope({ productCode: 'platform', permission: 'auth.me' })
+  setupMfa(@CurrentUserId() userId: string | null) {
+    return this.authService.setupTotp(userId ?? '');
+  }
+
+  @Post('mfa/enable')
+  @ApiBearerAuth()
+  @AccessScope({ productCode: 'platform', permission: 'auth.me' })
+  enableMfa(@CurrentUserId() userId: string | null, @Body() dto: { code: string }) {
+    return this.authService.enableTotp(userId ?? '', dto.code);
+  }
+
+  @Post('mfa/disable')
+  @ApiBearerAuth()
+  @AccessScope({ productCode: 'platform', permission: 'auth.me' })
+  disableMfa(@CurrentUserId() userId: string | null) {
+    return this.authService.disableTotp(userId ?? '');
+  }
+
   @Post('refresh')
   @PublicRoute()
   @AccessScope({ productCode: 'platform' })
+  @ApiBody({ type: RefreshTokenDto })
   @ApiOkResponse({ type: AuthResponseDto })
-  refresh(@Req() request: RequestWithContext, @Body() dto: RefreshTokenDto) {
+  refresh(@CurrentTenantId() tenantId: string | null, @Body() dto: RefreshTokenDto) {
     return this.authService.refresh({
-      tenantId: request.platformContext?.tenantId ?? request.header('x-tenant-id') ?? '',
+      tenantId: tenantId ?? '',
       refreshToken: dto.refreshToken,
     });
   }
@@ -50,7 +81,7 @@ export class AuthController {
   @ApiBearerAuth()
   @AccessScope({ productCode: 'platform', permission: 'auth.me' })
   @ApiOkResponse({ type: AuthUserDto })
-  me(@Req() request: RequestWithContext) {
-    return this.authService.me(request.user?.sub ?? '');
+  me(@CurrentUserId() userId: string | null) {
+    return this.authService.me(userId ?? '');
   }
 }
